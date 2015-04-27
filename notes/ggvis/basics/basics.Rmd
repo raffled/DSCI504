@@ -1,0 +1,134 @@
+---
+title: 'ggvis: basics'
+author: "jharner"
+date: "March 10, 2015"
+output: html_document
+---
+
+## ggvis basics
+
+### Introduction
+
+The goal of `ggvis` is to make it easy to build interactive graphics for exploratory data analysis. `ggvis` has a similar underlying theory to `ggplot2` (the grammar of graphics), but it’s expressed a little differently, and adds new features to make your plots interactive. `ggvis` also incorporates shiny’s reactive programming model and `dplyr`’s grammar of data transformation.
+
+The graphics produced by `ggvis` are fundamentally web graphics and work very differently from traditional R graphics. This allows us to implement exciting new features like interactivity, but it comes at a cost. For example, every interactive `ggvis` plot must be connected to a running R session (static plots do not need a running R session to be viewed). This is great for exploration, because you can do anything in your interactive plot you can do in R, but it’s not so great for publication. We will overcome these issues in time, but for now be aware that we have many existing tools to reimplement before you can do everything with `ggvis` that you can do with base graphics.
+
+This vignette is divided into four main sections:
+
+* Dive into plotting with `ggvis()`.  
+* Add interactivity with the mouse and keyboard.  
+* Create more types of graphic by controlling the layer type.  
+* Build up rich graphics with multiple layers.  
+
+Each section will introduce to a major idea in `ggvis`, and point to more detailed explanation in other vignettes.
+
+```
+ggvis()
+```
+
+Every `ggvis` graphic starts with a call to `ggvis()`. The first argument is the data set that you want to plot, and the other arguments describe how to map variables to visual properties.
+
+```{r}
+library(ggvis)
+p <- ggvis(mtcars, x = ~wt, y = ~mpg)
+```
+
+This doesn’t actually plot anything because you haven’t told `ggvis` how to display your data. You do that by layering visual elements, for example with `layer_points()`:
+```{r}
+layer_points(p)
+```
+
+(If you’re not using RStudio, you’ll notice that this plot opens in your web browser. That’s because all `ggvis` graphics are web graphics, and need to be shown in the browser. RStudio includes a built-in browser so it can show you the plots directly.)
+
+All `ggvis` functions take the visualisation as the first argument and return a modified visualisation. This seems a little bit awkward. Either you have to create temporary variables and modify them, or you have to use a lot of parentheses:
+```{r}
+layer_points(ggvis(mtcars, x = ~wt, y = ~mpg))
+```
+
+To make life easier `ggvis` uses the `%>%` (pronounced pipe) function from the `magrittr` package. That allows you to rewrite the previous function call as:
+```{r}
+mtcars %>%
+  ggvis(x = ~wt, y = ~mpg) %>%
+  layer_points()
+```
+
+Don’t worry if this looks a little strange at first. You’ll soon get used to it! This style of programming also allows gives you a lot of power when you start creating a lot of power, and allows you to seemlessly intermingle `ggvis` and `dplyr` code:
+```{r}
+library(dplyr)
+mtcars %>%
+  ggvis(x = ~mpg, y = ~disp) %>%
+  mutate(disp = disp / 61.0237) %>% # convert engine displacment to litres
+  layer_points()
+```
+
+The format of the visual properties needs a little explanation. We use `~` before the variable name to indicate that we don’t want to literally use the value of the `mpg` variable (which doesn’t exist), but instead we want we want to use the `mpg` variable inside in the dataset. This is a common pattern in `ggvis`: we’ll always use formulas to refer to variables inside the dataset.
+
+The first two arguments to `ggvis()` are usually the position, so by convention you can drop `x` and `y`:
+```{r}
+mtcars %>%
+  ggvis(~mpg, ~disp) %>%
+  layer_points()
+```
+
+You can add more variables to the plot by mapping them to other visual properties like `fill`, `stroke`, `size` and `shape`.
+```{r}
+mtcars %>% ggvis(~mpg, ~disp, stroke = ~vs) %>% layer_points()
+mtcars %>% ggvis(~mpg, ~disp, fill = ~vs) %>% layer_points()
+mtcars %>% ggvis(~mpg, ~disp, size = ~vs) %>% layer_points()
+mtcars %>% ggvis(~mpg, ~disp, shape = ~factor(cyl)) %>% layer_points()
+```
+
+If you want to make the points a fixed colour or size, you need to use `:=` instead of `=`. The `:=` operator means to use a raw, unscaled value. This seems like something that `ggvis()` should be able to figure out by itself, but making it explicit allows you to create some useful plots that you couldn’t otherwise. See the properties and scales for more details.
+```{r}
+mtcars %>% ggvis(~wt, ~mpg, fill := "red", stroke := "black") %>% layer_points()
+mtcars %>% ggvis(~wt, ~mpg, size := 300, opacity := 0.4) %>% layer_points()
+mtcars %>% ggvis(~wt, ~mpg, shape := "cross") %>% layer_points()
+```
+
+### Interaction
+
+As well as mapping visual properties to variables or setting them to specific values, you can also connect them to interactive controls.
+
+Note: interactive features are not avaiable in `knitr` documents.
+
+The following example allows you to control the size and opacity of points with two sliders:
+```{r}
+mtcars %>% 
+  ggvis(~wt, ~mpg, 
+    size := input_slider(10, 100),
+    opacity := input_slider(0, 1)
+  ) %>% 
+  layer_points()
+```
+
+You can also add on more complex types of interaction like tooltips:
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>% 
+  layer_points() %>% 
+  add_tooltip(function(df) df$wt)
+```
+
+You can also connect interactive components to other plot parameters like the width and centers of histogram bins:
+```{r}
+mtcars %>% 
+  ggvis(~wt) %>% 
+  layer_histograms(width =  input_slider(0, 2, step = 0.10, label = "width"),
+                   center = input_slider(0, 2, step = 0.05, label = "center"))
+```
+
+Behind the scenes, interactive plots are built with shiny, and you can currently only have one running at a time in a given R session. To finish with a plot, press the `stop` button in Rstudio, or close the browser window and then press `Escape` or `Ctrl + C` in R.
+
+As well as `input_slider()`, `ggvis` provides `input_checkbox()`, `input_checkboxgroup()`, `input_numeric()`, `input_radiobuttons()`, `input_select()` and `input_text()`. See the examples in the documentation for how you might use each one.
+
+You can also use keyboard controls with `left_right()` and `up_down()`. Press the left and right arrows to control the size of the points in the next example.
+```{r}
+keys_s <- left_right(10, 1000, step = 50)
+mtcars %>% ggvis(~wt, ~mpg, size := keys_s, opacity := 0.5) %>% layer_points()
+```
+
+You can also add on more complex types of interaction like tooltips:
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>% 
+  layer_points() %>% 
+  add_tooltip(function(df) df$wt)
+```

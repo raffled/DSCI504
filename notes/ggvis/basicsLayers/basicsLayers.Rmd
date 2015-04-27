@@ -1,0 +1,132 @@
+---
+title: 'ggvis: basics layers'
+author: "jharner"
+date: "March 10, 2015"
+output: html_document
+---
+
+## Layers
+
+So far, you seen two layer functions: `layer_points()` and `layer_histograms()`. There are many other layers, and they can be roughly categorised into two types:
+
+* Simple, which include primitives like points, lines and rectangles.
+* Compound, which combine data transformations with one or more simple layers.
+
+All layer functions use the plural, not the singular. Think the verb, not the noun: I’m going to layer some points onto my plot.
+
+### Simple layers
+
+There are five simple layers:
+
+* Points, `layer_points()`, with properties `x`, `y`, `shape`, `stroke`, `fill`, `strokeOpacity`, `fillOpacity`, and `opacity`.
+```{r}
+library(dplyr)
+library(ggvis)
+mtcars %>% ggvis(~wt, ~mpg) %>% layer_points()
+```
+
+* Paths and polygons, `layer_paths()`.
+```{r}
+df <- data.frame(x = 1:10, y = runif(10))
+df %>% ggvis(~x, ~y) %>% layer_paths()
+```
+
+If you supply a fill, you’ll get a polygon
+```{r}
+t <- seq(0, 2 * pi, length = 100)
+df <- data.frame(x = sin(t), y = cos(t))
+df %>% ggvis(~x, ~y) %>% layer_paths(fill := "red")
+```
+
+* Filled areas, `layer_ribbons()`. Use properties `y` and `y2` to control the extent of the area.
+```{r}
+df <- data.frame(x = 1:10, y = runif(10))
+df %>% ggvis(~x, ~y) %>% layer_ribbons()
+df %>% ggvis(~x, ~y + 0.1, y2 = ~y - 0.1) %>% layer_ribbons()
+```
+
+* Rectangles, `layer_rects()`. The location and size of the rectangle is controlled by the `x`, `x2`, `y` and `y2` properties.
+```{r}
+set.seed(1014)
+df <- data.frame(x1 = runif(5), x2 = runif(5), y1 = runif(5), y2 = runif(5))
+df %>% ggvis(~x1, ~y1, x2 = ~x2, y2 = ~y2, fillOpacity := 0.1) %>% layer_rects()
+```
+
+* Text, `layer_text()`. The text layer has many new options to control the apperance of the text: `text` (the label), `dx` and `dy` (margin in pixels between text and anchor point), `angle` (rotate the text), `font` (font name), `fontSize` (size in pixels), `fontWeight` (e.g. bold or normal), `fontStyle` (e.g. italic or normal.)
+```{r}
+df <- data.frame(x = 3:1, y = c(1, 3, 2), label = c("a", "b", "c"))
+df %>% ggvis(~x, ~y, text := ~label) %>% layer_text()
+df %>% ggvis(~x, ~y, text := ~label) %>% layer_text(fontSize := 50)
+df %>% ggvis(~x, ~y, text := ~label) %>% layer_text(angle := 45)
+```
+
+### Compound layers
+
+The four most common compound layers are:
+
+* `layer_lines()` which automatically orders by the `x` variable:
+```{r}
+t <- seq(0, 2 * pi, length = 20)
+df <- data.frame(x = sin(t), y = cos(t))
+df %>% ggvis(~x, ~y) %>% layer_paths()
+df %>% ggvis(~x, ~y) %>% layer_lines()
+```
+
+`layer_lines()` is equivalent to `arrange()` + `layer_paths()`:
+
+```{r}
+df %>% ggvis(~x, ~y) %>% arrange(x) %>% layer_paths()
+```
+
+* `layer_histograms()` and `layer_freqpolys()` which allows you to explore the distribution of continuous. Both layers first bin the data with `compute_bin()` then display the results with either rects or lines.
+```{r}
+mtcars %>% ggvis(~mpg) %>% layer_histograms()
+# Or equivalently
+binned <- mtcars %>% compute_bin(~mpg) 
+binned %>% 
+  ggvis(x = ~xmin_, x2 = ~xmax_, y2 = 0, y = ~count_, fill := "black") %>%
+  layer_rects()
+```
+
+* layer_smooths() fits a smooth model to the data, and displays predictions with a line. It’s used to highlight the trend in noisy data:
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>% layer_smooths()
+# Or equivalently
+smoothed <- mtcars %>% compute_smooth(mpg ~ wt)
+smoothed %>% ggvis(~pred_, ~resp_) %>% layer_paths()
+```
+
+You can control the degree of wiggliness with the `span` parameter:
+```{r}
+span <- input_slider(0.2, 1, value = 0.75)
+mtcars %>% ggvis(~wt, ~mpg) %>% layer_smooths(span = span)
+```
+
+## Multiple layers
+
+Rich graphics can be created by combining multiple layers on the same plot. This easier to do: just layer on multiple elements:
+```{r}
+mtcars %>% 
+  ggvis(~wt, ~mpg) %>% 
+  layer_smooths() %>% 
+  layer_points()
+```
+
+You could use this approach to add two smoothers with varying degrees of wiggliness:
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_smooths(span = 1) %>%
+  layer_smooths(span = 0.3, stroke := "red")
+```
+
+## More details
+
+There are other optional components that you can include:
+
+* `scales`, to control the mapping between data and visual properties. These are described in the properties and scales vignette.
+
+* `legends` and `axes` to control the appearance of the guides produced by the scales. See the axes and legends vignette for more details.
+
+
+
+

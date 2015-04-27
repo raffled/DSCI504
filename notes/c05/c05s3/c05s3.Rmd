@@ -1,0 +1,148 @@
+---
+title: 'Chap 5: The Grammar of Graphics: The ggplot2 Package'
+author: "jharner"
+date: "February 9, 2015"
+output: html_document
+---
+
+## 5.3 Data
+
+The following call to the ggplot() function creates a new plot for the mtcars data set.
+```{r}
+library(ggplot2)
+mtcars2 <- mtcars
+mtcars2$trans <- factor(mtcars$am,
+                        levels=0:1, 
+                        labels=c("automatic", "manual"))
+mtcars2$gear <- as.factor(mtcars$gear)
+p <- ggplot(mtcars2)
+```
+
+The data for a plot must always be a data frame. The result, a `ggplot` object, is assigned to the symbol `p` so that we can add more components to the plot.
+
+## 5.4 Geoms and Aesthetics
+
+The next step in creating a plot is to specify what sort of shape will be used in the plot, e.g., data symbols for a scatterplot or bars for a barplot. This step also involves deciding which variables in the data set will be used to control features of the shapes, e.g., which variables will be used for the $(x, y)$ positions of the data symbols in a scatterplot.
+
+Adding this information to the plot produces a new `ggplot` object by adding information that says to draw data symbols, using the `geom_point()` function and that the `disp` variable should be used for the $x$ location and the and `mpg` variable should be used for the $y$ location of the data symbols; these variables are mapped to the `x` and `y` aesthetics of the point `geom`, using the `aes()` function.
+```{r}
+p + geom_point(aes(x=disp, y=mpg))
+``` 
+
+Another aesthetic that can be used with `point` geoms is the `shape` aesthetic. In the following code, the `gear` variable is associated with the data symbol `shape` so that cars with different numbers of forward gears are drawn with different data symbols.
+```{r}
+p + geom_point(aes(x=disp, y=mpg, shape=gear), size=3)
+```
+
+This example also demonstrates the difference between *setting* an aesthetic and *mapping* an aesthetic. The `gear` variable is mapped to the `shape` aesthetic, using the `aes()` function, which means that the shapes of the data symbols are taken from the value of the variable. By contrast, the `size` aesthetic is set to the constant value of `4` (it is not part of the call to `aes()`), so all data symbols get this size.
+
+See Table 5.1 for common geoms and aesthetics. 
+
+A different sort of geom uses text labels rather than data symbols to plot the relationship between engine displacement and miles per gallon.
+```{r}
+p + geom_text(aes(x=disp, y=mpg, label=gear))
+```
+
+A plot can be made up of multiple geoms by simply adding further geoms to the plot description.
+```{r}
+lmcoef <- coef(lm(mpg ~ disp, mtcars2))
+
+p + geom_point(aes(x=disp, y=mpg)) + geom_abline(intercept=lmcoef[1], slope=lmcoef[2])
+```
+
+Specifying geoms and aesthetics provides the basis for creating a wide variety of plots with `ggplot2`.
+
+## 5.5 Scales
+
+Scales are often automatically generated in `ggplot2`. Add a scale component to override the default action.
+
+The following code explicitly sets the axis labels using the `scale_x_continuous()` and `scale_y_continuous()` functions:
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) +
+  scale_y_continuous(name="miles per gallon") +
+  scale_x_continuous(name="displacement (cu.in.)")
+```
+
+It is also possible to control features such as the limits of the axis, where the tick marks should go, and what the tick labels should look like.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) + scale_y_continuous(limits=c(0, 40))
+```
+
+`ggplot2` automatically creates legends when it is appropriate to do so. For example, in the following code, the color aesthetic is mapped to the `trans` variable in the `mtcars` data frame, so that the data symbols are colored according to what sort of transmission a car has.
+```{r}
+p + geom_point(aes(x=disp, y=mpg, color=trans), size=4)
+```
+This automatically produces a legend to display the mapping between type of transmission and color.
+
+When the `aes()` function is used to set up a mapping, the values of a variable are used to generate values of an aesthetic. For example, when the variable `disp` is mapped to the aesthetic `x` for a points geom, the numeric values of `disp` are used directly as x locations for the points.
+
+In other cases, the mapping is less obvious. For example, when the variable `trans`, with values `manual` and `automatic`, is mapped to the aesthetic `color` for a points geom, what color does the value `manual` correspond to? `ggplot2` provides a reasonable answer to this question by default.
+
+A second reason for explicitly adding a scale component to a plot is to explicitly control this mapping of variable values to aesthetic values. For example, the following code uses the `scale_color_manual()` function to specify the two colors (shades of gray) that will correspond to the two values of the `trans` variable.
+```{r}
+p + geom_point(aes(x=disp, y=mpg, color=trans), size=4) +
+  scale_color_manual(values=c(automatic=gray(2/3), manual=gray(1/3)))
+```
+
+See Figure 5.6 and Table 5.2.
+
+## 5.6 Statistical Transformations
+
+Some geoms do not map the raw data values directly to aesthetic settings. Instead, the data values undergo some form of statistical transformation, or *stat*, and the transformed values are mapped to aesthetics (see Figure 5.7).
+
+A good example of this sort of thing is the `bar` geom. This geom bins the raw values and uses the counts in each bin as the data to plot. For example, in the following code, the `trans` variable is mapped to the `x`aesthetic in the `geom_bar()` call. This establishes that the x-locations of the bars should be the levels of `trans`, but heights of the bars (the `y` aesthetic) is automatically generated from the counts of each level of trans to produce a bar plot.
+```{r}
+p + geom_bar(aes(x=trans))
+```
+
+The `stat` that is used in this case is a binning stat. Another option is an `identity` stat, which does not transform the data at all. The following code shows how to explicitly set the stat for a geom by creating the same bar plot from data that have already been binned.
+```{r}
+transCounts <- as.data.frame(table(mtcars2$trans))
+transCounts
+```
+
+Both the `x` and the `y` aesthetics are set explicitly for the `bar` geom and the `stat` is set to `identity` to tell the geom not to bin again.
+```{r}
+ggplot(transCounts) + geom_bar(aes(x=Var1, y=Freq), stat="identity")
+```
+
+The following code presents another common transformation, which involves smoothing the original values. In this code, a smooth geom is added to the original empty plot.
+```{r}
+p + geom_smooth(aes(x=disp, y=mpg))
+```
+
+A similar result (without the confidence band) can be obtained using a `line` geom and explicitly specifying a `smooth` stat.
+```{r}
+p + geom_line(aes(x=disp, y=mpg), stat="smooth")
+```
+
+Another alternative is to add an explicit `stat` component. This works because stat components automatically have a geom associated with them, just as geoms automatically have a stat associated with them. The default geom for a smoother stat is a line.
+```{r}
+p + stat_smooth(aes(x=disp, y=mpg))
+```
+
+A `bar` plot could be created with an explicit binning stat component. The default geom for a binning stat is a bar.
+```{r}
+p + stat_bin(aes(x=trans))
+```
+One advantage of this approach is that parameters of the stat, such as bin-widths for binning data, can be specified clearly as part of the stat. For example, the following code controls the method for the smooth stat to get a straight line.
+```{r}
+p + stat_smooth(aes(x=disp, y=mpg), method="lm")
+```
+
+See Figure 5.7 and Table 5.3.
+
+## 5.7 The Group Aesthetic
+
+By introducing the `trans` variable as an aesthetic that controls shape, two groups of data symbols are generated on the plot and a legend is produced (the `scale_shape_manual()` function is used to control the mapping from `trans` to data symbol shape.
+```{r}
+p + geom_point(aes(x=disp, y=mpg, shape=trans)) + scale_shape_manual(values=c(1, 3))
+```
+
+It is useful to be able to explicitly force a grouping for a plot and this can be achieved via the `group` aesthetic. The following code adds a smoother stat to a scatterplot where the data symbols are all the same, but there are separate smoothed lines for separate types of transmissions; the `group` aesthetic is set for the smoother stat. The `method` parameter is also set for the smoother stat so that the result is a straight line of best fit.
+```{r}
+ggplot(mtcars2, aes(x=disp, y=mpg)) + geom_point() +
+  stat_smooth(aes(group=trans), method="lm")
+```
+Notice that in the code above, aesthetic mappings have been specified in the call to `ggplot()`, which is more efficient when several components in a plot share the same aesthetic settings.
+

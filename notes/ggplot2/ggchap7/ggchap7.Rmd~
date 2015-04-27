@@ -1,0 +1,189 @@
+---
+title: 'ggChap7: Positioning'
+author: "jharner"
+date: "March 8, 2015"
+output: html_document
+---
+
+## 7.1 Introduction
+
+This chapter discusses position, particularly how facets are laid out on a page,
+and how coordinate systems within a panel work. There are four components
+that control position. You have already learned about two of them that work
+within a facet:
+
+* *Position adjustments* adjust the position of overlapping objects within a layer.   
+
+> These are most useful for bar and other interval geoms, but can be useful in other situations.
+
+* *Position scales* control how the values in the data are mapped to positions on the plot.  
+
+> Common transformations are linear and log, but any other invertible function can also be used.
+
+The other two components are:
+
+* *Faceting* is a mechanism for automatically laying out multiple plots on a page. 
+
+> It splits the data into subsets, and then plots each subset into a different panel on the page. Such plots are often called small multiples.
+
+* *Coordinate systems* control how the two independent position scales are combined to create a 2d coordinate system.
+
+> The most common coordinate system is Cartesian, but other coordinate systems can be useful in special circumstances.
+
+## 7.2 Faceting
+
+Faceting generates small multiples each showing a different subset of the data. Small multiples are a powerful tool for exploratory data analysis: you can rapidly compare patterns in different parts of the data and see whether they are the same or different.
+
+There are two types of faceting provided by ggplot2:
+
+* facet_grid
+
+> Facet grid produces a 2d grid of panels defined by variables which form the rows and columns.
+
+* facet_wrap.
+
+> Facet wrap produces a 1d ribbon of panels that is wrapped into 2d.
+
+The grid layout is similar to the layout of coplot in base graphics, and the wrapped layout is similar to the layout of panels in lattice.
+
+Two basic arguments to the faceting systems:
+
+* the variables to facet by;  
+* whether position scales should be global or local to the facet.  
+
+The way these options are specified is a little different for the two systems.
+
+You can access either faceting system from `qplot()`.
+
+* A 2d faceting specification (e.g., x ~ y) will use facet_grid;  
+* A 1d specification (e.g., ~ x) will use facet_wrap.  
+
+Faceted plots have the capability to fill up a lot of space, so for this chapter
+we will use a subset of the mpg dataset that has a manageable number of levels: three cylinders (4, 6, 8) and two types of drive train (4 and f). This removes 29 vehicles from the original dataset.
+```{r}
+library(ggplot2)
+mpg2 <- subset(mpg, cyl != 5 & drv %in% c("4", "f"))
+```
+
+### 7.2.1 Facet grid
+
+The grid faceter lays out plots in a 2d grid. When specifying a faceting formula,
+you specify which variables should appear in the columns and which should
+appear in the rows, as follows:
+
+* No specification. Neither rows nor columns are faceted, so you get a single panel.
+
+```{r}
+qplot(cty, hwy, data = mpg2)
+```
+
+* `. ~ a` A single row with multiple columns.
+
+> This is normally the most useful direction because computer screens are usually wider than they are long. This direction of faceting facilitates comparisons of `y` position, because the vertical scales are aligned.
+
+```{r}
+qplot(cty, hwy, data = mpg2) + facet_grid(. ~ cyl)
+```
+
+* `b ~ .` A single column with multiple rows.
+
+> This direction facilitates comparison of `x` position, because the horizontal scales are aligned, and so is particularly useful for comparing distributions.
+
+```{r}
+qplot(cty, data = mpg2, geom="histogram", binwidth = 2) +
+  facet_grid(cyl ~ .)
+```
+
+* `a ~ b`: Multiple rows and columns.
+
+> You’ll usually want to put the variable with the greatest number of levels in the columns, to take advantage of the aspect ratio of your screen.
+
+```{r}
+qplot(cty, hwy, data = mpg2) + facet_grid(drv ~ cyl)
+```
+
+* `. ~ a + b` or `a + b ~ .` Multiple variables in the rows or columns (or both).
+
+> This is unlikely to be useful unless the number of factor levels is small, you have a very wide screens or you want to produce a long, skinny poster.
+
+```{r}
+qplot(cty, hwy, data = mpg2) + facet_grid(. ~ drv + cyl)
+```
+
+
+Variables appearing together on the rows or columns are nested in the sense that only combinations that appear in the data will appear in the plot. Variables that are specified on rows and columns will be crossed: all combinations will be shown, including those that didn’t appear in the original dataset: this may result in empty panels.
+
+#### Margins
+
+Faceting a plot is like creating a contingency table. In contingency tables it is
+often useful to display marginal totals (totals over a row or column) as well as the individual cells. It is also useful to be able to do this with graphics, and
+you can do so with the margins argument. This allows you to compare the conditional patterns with the marginal patterns.
+
+You can either specify that all margins should be displayed, using `margins = TRUE`, or by listing the names of the variables that you want margins for,` margins = c("sex", "age")`. You can also use `grand_row` or `grand_col` to produce grand row and grand column margins, respectively.
+
+```{r}
+p <- qplot(displ, hwy, data = mpg2) + geom_smooth(method = "lm", se = F)
+p + facet_grid(cyl ~ drv)
+p + facet_grid(cyl ~ drv, margins = T)
+```
+
+Groups in the margins are controlled in the same way as groups in all other
+panels, defaulting to the interaction of all categorical variables present in the
+layer.
+
+```{r}
+qplot(displ, hwy, data = mpg2) +
+  geom_smooth(aes(colour = drv), method = "lm", se = F) + 
+  facet_grid(cyl ~ drv, margins = T)
+```
+
+### 7.2.2 Facet wrap
+
+An alternative to the grid is a wrapped ribbon of plots. Instead of having a
+2d grid generated by the combination of two (or more) variables, `facet_wrap` makes a long ribbon of panels (generated by any number of variables) and wraps it into 2d. This is useful if you have a single variable with many levels and want to arrange the plots in a more space efficient manner. This is what trellising in lattice does.
+
+Now consider the distribution of average movie ratings by decade. The main difference over time seems to be the increasing spread of ratings. This is probably an artefact of the number of votes: newer movies get more votes and so the average ratings are likely to be less extreme. The disadvantage of this style of faceting is that it is harder to compare some subsets that should be close together.
+```{r}
+library(plyr)
+movies$decade <- round_any(movies$year, 10, floor)
+qplot(rating, ..density.., data=subset(movies, decade > 1890),
+  geom="histogram", binwidth = 0.5) +
+  facet_wrap(~ decade, ncol = 6)
+```
+
+The specification of faceting variables is of the form `~ a + b + c`. By default, `facet_wrap` will try and lay out the panels as close to a square as possible, with a slight bias towards wider rather than taller rectangles. You can override the default by setting `ncol`, `nrow` or both. 
+
+### 7.2.3 Controlling scales
+
+For both types of faceting you can control whether the position scales are the
+same in all panels (`fixed`) or allowed to vary between panels (`free`). This is
+controlled by the scales parameter:
+
+* `scales = "fixed"`: x and y scales are fixed across all panels.  
+* `scales = "free"`: x and y scales vary across panels.  
+* `scales = "free_x"`: the x scale is free, and the y scale is fixed.  
+* `scales = "free_y"`: the y scale is free, and the x scale is fixed.  
+
+```{r}
+p <- qplot(cty, hwy, data = mpg)
+p + facet_wrap(~ cyl)
+p + facet_wrap(~ cyl, scales = "free")
+```
+
+Fixed scales allow us to compare subsets on an equal basis, seeing where
+each fits into the overall pattern. Free scales zoom in on the region that each
+subset occupies, allowing you to see more details. Free scales are particularly
+useful when we want to display multiple times series that were measured on
+different scales. To do this, we first need to change from “wide” to “long” data,
+stacking the separate variables into a single column.
+
+```{r}
+library(reshape)
+head(economics)
+em <- melt(economics, id = "date")
+head(em)
+qplot(date, value, data = em, geom = "line", group = variable) +
+  facet_grid(variable ~ ., scale = "free_y")
+```
+
+

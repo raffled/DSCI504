@@ -1,0 +1,170 @@
+---
+title: 'Chap 4: Trellis Graphics: The lattice Package'
+author: "jharner"
+date: "February 16, 2015"
+output: html_document
+---
+
+The `grid` package only provides low-level graphics functions; it does not provide any functions for drawing complete plots. Such high-level functions are provided instead by other packages. This chapter and the next describe two major packages of this type: Deepayan Sarkar’s `lattice` and Hadley Wickham’s `ggplot2`.
+
+The `lattice` package implements the Trellis Graphics system with some novel extensions. This represents a complete and coherent graphics system, which can in most cases be used without encountering any concepts of the underlying grid system.
+
+## 4.1 The lattice graphics mocel
+
+`lattice` functions appear to work just like traditional graphics functions where the user calls a function and output is generated on the current device. The following code produces the lattice equivalent of the traditional graphics call `plot(pressure)`. The first argument is a formula defining the x- and y-variables to plot and the second argument is a data frame that contains the variables named in the formula.
+```{r}
+library(lattice)
+xyplot(pressure ~ temperature, pressure)
+```
+
+The following code plots lines as well as points, using the type argument, adds a title, using the main argument, and uses pch and lty to set the data symbol and line type. 
+```{r}
+xyplot(pressure ~ temperature, pressure, type="o", pch=16,
+       lty="dashed", main="Vapor Pressure of Mercury")
+```
+
+## 4.2 lattice plot types
+
+The lattice plotting functions provide a very long list of arguments and produce a wide range of different types of output. However, because lattice provides a single coherent system, many of the arguments are the same across the different graphics functions.
+
+See Table 4.1.
+
+## 4.3 The formula arguments and multipanel conditioning
+
+The first argument to the lattice plotting functions is an R formula that describes which variables to plot. A formula of the form:  
+
+* `y ~ x` plots the variable `y` against the variable `x`;  
+* `~ x` for plots of one variable, e.g., the `histogram()` function;  
+* `z ~ x * y` for certain plots of three variables, e.g., the `cloud()` and `wireframe()` functions;  
+* `y1 + y2 ~ x` plots multiple y-variables, i.e., `y1` and `y2` against `x`;  
+* `y ~ X1 + x2` plot multiple x-variables.  
+
+The second argument to a `lattice` plotting function is typically `data`, which allows the user to specify a data frame within which lattice can find the variables that were used in the formula.
+
+The Trellis Graphics allow the user to specify conditioning variables within the formula argument, e.g., `y ~ x | g` plots the variable `y` against the variable `x` for each level of the variable `g`.
+
+The following examples use various measurements on 32 different automobile designs, which are available as the data set `mtcars` in the `datasets` package. The examples will use measurements on fuel efficiency in miles per gallon (`mpg`), engine size or displacement (`disp`), and number of forward gears (`gear`).
+```{r}
+head(mtcars)
+```
+
+A scatterplots of fuel efficiency as a function of engine size and multipanel conditioning is produced by the following code:
+```{r}
+xyplot(mpg ~ disp, data=mtcars)
+xyplot(mpg ~ disp | factor(gear), data=mtcars)
+```
+
+The plot consists of three panels and the strip above each panel presents the level of the conditioning variable. There can be more than one conditioning variable in the formula argument, in which case a panel is produced for each combination of the conditioning variables.
+
+The most natural type of variable to use as a conditioning variable is a categorical variable (factor), but there is also support for using a continuous (numeric) conditioning variable in which case we use the concept of a *shingle*. This is a continuous variable with a number of ranges associated with it. The  shingle()  function can be used to explicitly control the ranges, or the `equal.count()` function can be used to generate ranges automatically given a number of groups.
+
+## 4.4 The group argument and legends
+
+The `group` argument allows multiple data series to be drawn on the same plot (or in each panel). The following code shows an example:
+```{r}
+xyplot(mpg ~ disp, data=mtcars,
+       group=gear,
+       auto.key=list(space="right"))
+```
+
+By specifying a variable via the `group` argument, a different plotting symbol will be used for cars with different numbers of gears. The `auto.key` argument is set so that `lattice` automatically generates an appropriate legend to show the mapping between data symbols and number of gears.
+
+`key` and `legend` provide progressively greater flexibility at the cost of increased complexity.
+
+## 4.5 The layout argument and arranging plots
+
+Two types of arrangements to consider when dealing with lattice plots:  
+
+* the arrangement of panels and strips within a single lattice plot;  
+
+> Two useful arguments that can be specified in a call to a lattice plotting function are the `layout` argument and the `aspect` argument.  
+
+* the arrangement of several complete lattice plots together on a single page.  
+
+> See the text for the problem of arranging multiple lattice plots on a page.  
+
+The first two arguments of `layout` indicate the number of columns and rows of panels on each page and the third value indicates the number of pages. `lattice` provides sensible default values for any unspecified values.
+
+The following code specifies that there should be a single row of three panels, via the `layout` argument, and that each panel must be “square,” via the `aspect` argument.
+```{r}
+xyplot(mpg ~ disp | factor(gear), data=mtcars,
+       layout=c(3, 1), aspect=1)
+```
+
+The `aspect` argument specifies the aspect ratio (height divided by width) for the panels. The default value is `fill`, which means that panels expand to occupy as much space as possible. In the example above, the panels were all forced to be square by specifying `aspect=1`. This argument will also accept the special value `xy`, which means that the aspect ratio is calculated to satisfy the “banking to 45 degrees” rule proposed by Bill Cleveland.
+
+## 4.6 The scales argument and labeling axes
+
+The `scales` argument takes a list of different settings that influence the appearance of axes. The list can have sublists, named `x` and `y`, if the settings are intended to affect only the x-axes or only the y-axes.
+
+In the following code is used to specify exactly where tick marks should appear on y-axes. This code also demonstrates that the `xlab` and `ylab` arguments can be expressions to allow the use of special formatting and special symbols.
+```{r}
+xyplot(mpg ~ disp | factor(gear), data=mtcars, layout=c(3, 1), aspect=1,
+       scales=list(y=list(at=seq(10, 30, 10))),
+       ylab="miles per gallon", xlab=expression(paste("displacement (", inch^3, ")")))
+```
+
+Besides specifying the location and labels for tick marks, the `scales` argument can also be used to control the font used for tick labels (`font`), the rotation of the labels (`rot`), the range of values on the axes (`limits`), and whether these ranges should be the same for all panels (relation="same") or allowed to vary between panels (relation="free").
+
+## 4.7  The panel argument and annotating plots
+
+The lattice graphics system can produce extremely sophisticated plots from relatively simple expressions, especially with its multipanel conditioning feature. However, the cost of this is that the task of adding simple annotations of a lattice plot, such as adding extra lines or text, is more complex compared to the same task in traditional graphics.
+
+Extra drawing can be added to the panels of a lattice plot via the `panel` argument. The value of this argument is a function, which gets called to draw the contents of each panel.
+
+The panel function consists of calls to vari- ous predefined functions that are designed to add graphics to lattice panels. The first function is very important. The panel.xyplot() function does the drawing that xyplot() would normally have done if the panel argument had not been specified. In this case, it draws a data symbol for each car. The other functions called in this panel function are panel.abline() and panel.text(), which add a dashed horizontal line and a label to indicate an efficiency criterion of 29 miles per gallon.
+```{r}
+xyplot(mpg ~ disp | factor(gear), data=mtcars, layout=c(3, 1), aspect=1,
+       panel=function(...) { panel.xyplot(...)
+                             panel.abline(h=29, lty="dashed")
+                             panel.text(470, 29.5, "efficiency criterion",
+                                        adj=c(1, 0), cex=.7)
+                             })
+```
+
+Another common situation is that the extra graphics in a panel need to depend on the x- and y-values that are plotted in that panel. The code below shows an example, where the `panel.lmline()` function is called as part of the panel function to draw a line of best fit to the data in each panel.
+
+The panel function now has explicit x- and y-arguments, which capture the data values that lattice passes to each panel. These x- and y-values are passed to panel.lmline() and to panel.xyplot() to produce the relevant output in each panel. There is a lot of other information that lattice passes to the panel function (see the argument list on the help page for panel.xyplot()), but that is all simply passed through to `panel.xyplot()` via an ellipsis argument.
+```{r}
+xyplot(mpg ~ disp | factor(gear), data=mtcars, layout=c(3, 1), aspect=1,
+       panel=function(x, y, ...) {
+         panel.lmline(x, y)
+         panel.xyplot(x, y, ...)
+         })
+```
+
+For every high-level lattice plotting function (see Table 4.1) there is also a corresponding default panel function, for example, `panel.xyplot()`, `panel.bwplot()`, and `panel.histogram()`. See Table 4.2.
+
+## 4.8 "par.settings and graphical parameters
+
+Trellis Graphics carefully selects default settings for many of the features of lattice plots. For example, the default data symbols and colors used to distinguish between different data series have been chosen so that it is easy to visually discriminate between them. It is still sometimes desirable to be able to make alterations to the default settings for aspects like color and text size.
+
+The examples at the start of this chapter demonstrated that many of the familiar standard arguments from traditional graphics, such as `col`, `lty`, and `lwd`, do the same job in `lattice` plots. These graphical parameters can also be set via a `par.settings` argument.
+```{r}
+xyplot(pressure ~ temperature, pressure, type="o",
+       par.settings=list(plot.symbol=list(pch=16),
+                         plot.line=list(lty="dashed")),
+       main="Vapor Pressure of Mercury")
+```
+
+The settings in each parameter group affect some aspect of a lattice plot:
+
+* some have a “global” effect, e.g., the `fontsize` settings affect all text in a plot;
+* some are more specific, e.g., the `strip.background` setting affects the background color of strips;
+*some only affect a certain aspect of a certain sort of plot, e.g., the `box.dot` settings affect only the dot that is plotted at the median value in boxplots.
+
+The function `show.settings()` produces a picture representing some of the current graphical parameter settings.
+```{r}
+show.settings()
+```
+
+A full set of lattice graphical parameter settings is called a *theme*. It is possible to specify such a theme and enforce a new “look and feel” for a plot. The lattice package currently provides one custom theme via the `col.whitebg()` function.
+
+It is also possible to obtain the default theme for a particular device using the `canonical.theme()` function.
+
+## 4.9  Extending lattice plots
+
+New lattice functions can be developed. See the text.
+
+
+

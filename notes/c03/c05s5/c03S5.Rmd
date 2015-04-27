@@ -1,0 +1,105 @@
+---
+title: 'Chap 3: Customizing Traditional Graphics'
+author: "jharner"
+date: "February 4, 2015"
+output: html_document
+---
+
+## 3.5 Creating new plots
+
+The `plot.new()` function is the most basic starting point for producing a traditional graphics plot (the `frame()` function is equivalent). This function starts a new plot and sets up the various plotting regions described in Section 3.1.1, with both the x-scale and y-scale set to (0,1).  The size and position of the regions that are set up depend on the current graphics state settings.
+
+The `plot.window()` function resets the scales in the user coordinate system, given x- and y-ranges via the arguments `xlim` and `ylim`, and the `plot.xy()` function draws data symbols and lines between locations within the plot region.
+
+### 3.5.1 A simple plot from scratch
+
+A scatterplot:
+```{r}
+plot.new()
+plot.window(range(pressure$temperature), range(pressure$pressure))
+plot.xy(pressure, type="p")
+box()
+axis(1)
+axis(2)
+plot(pressure)
+```  
+
+The call to `plot.new()` starts a new, completely blank, plot and the call to `plot.window()` sets the scales on the axes to fit the range of the data to be plotted. At this point, there is still nothing drawn. The `plot.xy()` function draws data symbols (`type="p"`) at the data locations, then `box()` draws a rectangle around the plot region, and `axis()` is used to draw the axes.
+
+### 3.5.2 A more complex plot from scratch
+
+These are the counts of (adult) male and female survivors of the sinking of the Titanic.
+```{r}
+data(Titanic)
+groups <- dimnames(Titanic)[[1]]
+males <- Titanic[, 1, 2, 2]
+males
+females <- Titanic[, 2, 2, 2]
+females
+```
+
+The labels to the left of the plot will be drawn in the margins of the plot, but everything else will be drawn inside the plot region.
+```{r}
+y <- 1:4
+h <- 0.2
+```
+
+This next code draws the main part of the plot. Everything is drawn using calls to the low-level functions such as lines(), segments(), mtext(), and axis().
+```{r}
+par(mar=c(0.5, 5, 0.5, 1))
+plot.new()
+plot.window(xlim=c(-200, 200), ylim=c(-1.5, 4.5))
+ticks <- seq(-200, 200, 100)
+lines(rep(0, 2), c(-1.5, 4.5), col="gray")
+segments(-200, y, 200, y, lty="dotted")
+rect(-males, y-h, 0, y+h, col="cornflowerblue")
+rect(0, y-h, females, y+h, col="salmon")
+mtext(groups, at=y, adj=1, side=2, las=2)
+par(cex.axis=0.75, mex=0.5)
+axis(1, at=ticks, labels=abs(ticks), pos=0)
+
+# The final step is to produce the legend at the bottom of the plot.
+
+tw <- 1.5*strwidth("females")
+rect(-tw, -1-h, 0, -1+h, col="cornflowerblue")
+rect(0, -1-h, tw, -1+h, col="salmon")
+text(0, -1, "males", pos=2)
+text(0, -1, "females", pos=4)
+```
+
+### 3.5.3 Writing traditional graphics functions
+
+This section briefly describes some of the things to consider when creating a new graphics function built on the traditional graphics system. 
+
+#### Helper functions
+
+The `xy.coords()` function is useful for allowing x and y arguments to your new function to be flexibly specified.
+
+Another set of useful helper functions are those that calculate values to plot from the raw data, but do no actual drawing, e.g.,  `boxplot.stats()` used by `boxplot()` to generate five-number summaries.
+
+#### Argument lists
+
+A common technique when writing a traditional graphics function is to provide an ellipsis argument (`...`) instead of individual graphics state arguments (such as `col` and `lty`). This allows users to specify any state settings.
+
+It is polite for the graphics function to revert the graphics state settings at the end of the function so that users do not get a nasty surprise.
+```
+opar <- par(no.readonly=TRUE)
+on.exit(par(opar))
+```
+
+#### Plot methods
+
+See Figure 3.28.
+
+The code in Figure 3.28 is a simple shell that combines some of the basic guidelines from this section. This is just a simplified version of the default `plot()` method.
+
+
+
+
+
+
+
+
+
+
+

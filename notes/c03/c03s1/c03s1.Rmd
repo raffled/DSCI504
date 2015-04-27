@@ -1,0 +1,350 @@
+---
+title: 'Chap3: Customizing Traditional Graphics'
+author: "jharner"
+date: "January 26, 2015"
+output: html_document
+---
+
+This chapter describes low-level traditional functions that are useful
+for controlling the fine details of a plot and for adding further
+output to a plot. 
+
+## 3.1 The traditional graphics model in more detail
+
+### 3.1.1 Plotting regions
+
+Every page is split up into three main regions:  
+
+* the **outer margins**  
+* the **current figure region**  
+* the **current plot region**   
+
+See Figure 3.1 and Figure 3.2 for details.
+
+The region obtained by removing the outer margins from the device is
+called the **inner region**. When there is only one figure, this
+usually corresponds to the **figure region**. 
+
+The area outside the plot region, but inside the figure region is
+referred to as the **figure margins**. A typical high-level function
+draws data symbols and lines within the plot region and axes and
+labels in the figure margins or outer margins. 
+
+The size and location of the different regions are controlled either
+via the `par()` function, or using special functions. 
+
+#### Coordinate systems
+
+The coordinate system in the plot region, referred to as **user
+coordinates**, corresponds to the range of values on the axes of the
+plot (Figure 3.3). The drawing of data symbols, lines, and text in the
+plot region occurs relative to this user coordinate system. 
+
+The coordinate systems in the figure margins are a combination of x-
+or y-ranges (like user coordinates) and lines of text away from the
+boundary of the plot region (Figure 3.4). **Normalized coordinate
+systems** available for the figure margins in which the x- and
+y-ranges are replaced with a range from 0 to 1. 
+
+The outer margins have similar sets of coordinate systems, but
+locations along the boundary of the inner region can only be specified
+in normalized coordinates (always relative to the extent of the
+complete outer margin) (Figure 3.5). 
+
+### 3.1.2 The traditional graphics state
+
+The traditional graphics system maintains a **graphics state** for
+each graphics device and, when drawing occurs, this state is consulted
+to determine where output should be drawn, what color to use, what
+fonts to use, etc. 
+
+The graphics state consists of a large number of settings to describe:  
+
+* the size and placement of the plot regions and coordinate systems;   
+* the general appearance of graphical output (e.g., the colors and line types that are used to draw lines and the fonts that are used to draw text);  
+* aspects of the output device (e.g., the physical size of the device
+and the current clipping region).   
+
+See Table 3.1 to 3.3.
+
+The main function used to access the graphics state is the
+`par()`function. Simply typing `par()` will result in a complete
+listing of the current graphics state. A specific state setting can be
+queried by supplying specific setting names as arguments to `par()`. 
+```{r}
+# par()
+par(c("col", "lty"))
+```
+
+The par() function can be used to modify traditional graphics state
+settings by specifying a value via an argument with the appropriate
+setting name. 
+```{r}
+par(col="red", lty="dashed")
+par(col="black", lty="solid") # reset
+```
+
+Modifying traditional graphics state settings via `par()` has a
+persistent effect. Settings specified in this way will hold until a
+different setting is specified. Settings may also be *temporarily*
+modified by specifying a new value in a call to a graphics function
+such as `plot()` or `lines()`. 
+```{r}
+y <- rnorm(20)
+par(lty="dashed")
+plot(y, type="l") # line is dashed
+plot(y, type="l", lty="solid") # line is solid
+plot(y, type="l") # line is dashed
+```
+
+Every graphics device has its own graphics state and calls to `par()`
+only affect the traditional graphics state of the currently active
+graphics device. 
+
+## 3.2 Controlling the appearance of plots
+
+This section is concerned with the appearance of plots, which means
+the colors, line types, fonts and so on that are used to draw a plot. 
+
+`col` controls the color of output. This can be set permanently using
+`par()` with an expression of the form `par(col="red")`, which will
+affect all subsequent graphical output. `plot(..., col="red")` will
+affect the output just for that plot. 
+
+The setting can be used as an argument to a low-level function, as in
+the expression below `lines(..., col="red")`, which demonstrates that
+the setting can be used to control the appearance of just a single
+piece of graphical output. 
+
+### 3.2.1 Colors
+
+Three main color settings in the traditional graphics state: `col`, `fg`, and `bg`.
+
+The `col` is used to specify the color of data symbols, lines, text,
+and so on that are drawn in the plot region. Unfortunately, when
+specified via a graphics function, the effect can vary. For example, a
+standard scatterplot produced by the `plot()` function will use `col`
+for coloring data symbols and lines, but the `barplot()` function will
+use `col` for filling the contents of its bars. 
+
+The effect of `col` on graphical output drawn in the margins also
+varies. It does not affect the color of axes and axis labels, but it
+does affect the output from the `mtext()` function. 
+
+The `fg` setting is primarily intended for specifying the color of
+axes and borders on plots. 
+
+The `bg` setting is primarily intended to specify the color of the
+background for traditional graphics output. This color is used to fill
+the entire page. When `bg` is specified in a graphics function it can
+have a quite different meaning. For example, the `plot()` and
+`points()` functions use `bg` to specify the color for the interior of
+the data symbols. 
+
+#### Fill patterns
+
+When printing in black and white, it is difficult to make use of
+different colors to distinguish between different elements of a
+plot. Using different levels of gray can be effective, but another
+option is to make use of some sort of fill pattern, such as
+cross-hatching. 
+
+Fill patterns and they can only be applied to rectangles and
+polygons. It is possible to fill a rectangle or polygon with a set of
+lines drawn at a certain angle, with a specific separation between the
+lines. A `density` argument controls the separation between the lines
+(in terms of lines per inch) and an `angle` argument controls the
+angle of the lines. These settings can only be controlled via
+arguments to the functions `rect()`, `polygon()`, `hist()`,
+`barplot()`, `pie()`, and `legend()`. 
+
+### 3.2.2 Lines
+
+The `lty` setting describes the type of line to draw (e.g., `solid`,
+`dashed`, or `dotted`), the `lwd` setting describes the width of
+lines, and the `ljoin`, `lend`, and `lmitre` settings control how the
+ends and corners in lines are drawn (rounded or pointy). The scope of
+these settings again differs depending on the graphics function being
+called. 
+
+### 3.2.3 Text
+
+The size of text is controlled via `ps` and `cex`; the font is
+controlled via `font` and `family`; the justification of text is
+controlled via `adj`; and the angle of rotation is controlled via
+`srt`. 
+
+#### Text size
+
+The size of text is ultimately a numerical value specifying the size
+of the font in “points.” The font size is controlled by two settings:
+`ps` specifies an absolute font size setting (e.g., `ps=9`), and `cex`
+specifies a multiplicative modifier (e.g., `cex=1.5`). The final font
+size specification is simply `fontsize * cex`. 
+
+When `cex` is specified via `par()`, it affects most text. However,
+when `cex` is specified via `plot()`, it only affects the size of data
+symbols. There are special settings for controlling the size of text
+that is drawn as axis tick labels (`cex.axis`), text that is drawn as
+axis labels (`cex.lab`), text in the title (`cex.main`), and text in
+the subtitle (`cex.sub`). 
+
+#### Specifying fonts
+
+The `family` setting is a character value giving the name of a
+specific font family, such as "Times Roman", or a generic family
+style, such as "serif", "sans" (sans-serif), or "mono" (monospaced). 
+
+"The `font` is a numeric value that selects between normal text (1),
+bold (2), italic (3), and bold-italic (4). 
+
+#### Justification of text
+
+The `adj` setting is a value from 0 to 1 indicating the horizontal
+justification of text strings (0 means left-justified, 1 means
+right-justified and a value of 0.5 centers text). In the plot region,
+the justification is relative to the (x, y) location at which the text
+is being drawn. 
+
+In the figure margins and outer margins, the meaning of the `adj`
+setting depends on the `las` setting. When margin text is parallel to
+the axis, `adj` specifies both the location and the justification of
+the text. 
+
+#### Rotating text
+
+The `srt` setting specifies a rotation angle anti-clockwise from the
+positive x-axis, in degrees. This will only affect text drawn in the
+plot region (text drawn by the `text()` function. 
+
+In the figure and outer margins, text may only be drawn at angles that
+are multiples of 90 degrees, and this angle is controlled by the `las`
+setting. 
+
+#### Multi-line text
+
+The spacing between multiple lines of text is controlled by the
+`lheight` setting, which is a multiplier applied to the natural height
+of a line of text. For example, `lheight=2` specifies double-spaced
+text. This setting can only be specified via `par()`. 
+
+### 3.2.4 Data symbols
+
+The data symbol used for plotting points is controlled by the `pch`
+setting. This can be an integer value to select one of a fixed set of
+data symbols, or a single character. For example, specifying `pch=0`
+produces an open square, `pch=1` produces an open circle, and `pch=2`
+produces an open triangle, etc. Specifying `pch="#"` means that a hash
+character will be plotted at each data location. 
+
+Some of the predefined data symbols (pch between 21 and 25) allow a
+fill color separate from the border color, with the `bg` setting
+controlling the fill color in these cases. 
+
+The type setting controls how data are represented in a plot. A value
+of "p" means that data symbols are drawn at each (x, y) location. The
+value "l" means that the (x, y) locations are connected by lines. A
+value of "b" means that both data symbols and lines are drawn. The
+type setting may also have the value "o", which means that data
+symbols are “over-plotted” on lines (with the value "b", the lines
+stop short of each data symbol). 
+
+It is also possible to specify the value "h", which means that
+vertical lines are drawn from the x-axis to the (x, y) locations (the
+appearance is like a barplot with very thin bars). Two further values,
+"s" and "S" mean that (x, y) locations are joined in a city-block
+fashion with lines going horizontally then vertically (or vertically
+then horizontally) between each data location. Finally, the value "n"
+means that nothing is drawn at all. 
+
+### 3.2.5  Axes
+
+The traditional graphics system produces axes with sensible labels and
+tick marks at sensible locations. The user may have to resort to
+drawing the axis explicitly using the `axis()` function. The `lab`
+setting in the traditional graphics state is used to control the
+number of tick marks on the axes. 
+
+See the text for additional settings.
+
+### 3.2.6 Plotting regions
+
+The traditional graphics system defines several different regions on
+the graphics device. How do we to control the size and layout of these
+regions using graphics state settings. The size of each margin can be
+controlled independently, but R will check whether an overall
+specification is consistent. 
+
+#### Outer margins
+
+By default, there are no outer margins on a page. Outer margins can be
+specified using the `oma` graphics state setting. This consists of
+four values for the four margins in the order (bottom, left, top,
+right) and values are interpreted as lines of text. 
+
+#### Figure regions
+
+By default, the figure region is calculated from the settings for the
+outer margins and the number of figures on the page. 
+
+#### Figure margins
+
+The figure margins can be controlled using the `mar` state
+setting. This consists of four values for the four margins in the
+order (bottom, left, top, right) where each value represents a number
+of lines of text. 
+
+#### Plot regions
+
+By default, the plot region is calculated from the figure region less
+the figure margins. The location and size of the plot region may be
+controlled explicitly instead, using the `plt`, `pin`, or `pty`
+settings. 
+
+See Figure 3.11 for more details.
+
+### 3.2.7 Clippings
+
+Traditional graphics output is usually clipped to the plot
+region. This means that any output that would appear outside the plot
+region is not drawn. For example, in the default behavior, data
+symbols for (x, y) locations which lie outside the ranges of the axes
+are not drawn. 
+
+Traditional graphics functions that draw in the margins clip output to
+the current figure region or to the device. 
+
+It can be useful to override the default clipping region. For example,
+this is necessary to draw a legend outside the plot region using the
+`legend()` function. 
+
+### 3.2.8 Moving to a new plot
+
+The `devAskNewPage()` function can be used to control whether the user
+is prompted before the graphics system starts a new page of output. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

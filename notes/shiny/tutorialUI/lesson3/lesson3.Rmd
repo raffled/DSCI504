@@ -1,0 +1,133 @@
+---
+title: "Shiny Lesson 3"
+author: "me"
+date: "April 6, 2015"
+output: html_document
+---
+
+## Add control widgets
+
+This lesson will show you how to add control widgets to your Shiny apps. What’s a widget? A web element that your users can interact with. Widgets provide a way for your users to send messages to the Shiny app.
+
+Shiny widgets collect a value from your user. When a user changes the widget, the value will change as well. This sets up opportunities that we’ll explore in Lesson 4.
+
+### Control widgets
+
+Shiny comes with a family of pre-built widgets, each created with a transparently named R function. For example, Shiny provides a function named actionButton that creates an Action Button and a function namessliderInput that creates a slider bar.
+
+(See the tutorial.)
+
+### Adding widgets
+
+You can add widgets to your web page in the same way that you added other types of HTML content in Lesson 2. To add a widget to your app, place a widget function in `sidebarPanel` or `mainPanel` in your `ui.R` file.
+
+Each widget function requires several arguments. The first two arguments for each widget are
+
+* A **Name for the widget**. The user will not see this name, but you can use it to access the widget’s value. The name should be a character string.
+
+* A **label**. This label will appear with the widget in your app. It should be a character string, but it can be an empty string "".
+
+In this example, the name is “action” and the label is “Action”:
+```
+actionButton("action", label = "Action")
+```
+
+The remaining arguments vary from widget to widget, depending on what the widget needs to do its job. They include things the widget needs to do its job, like initial values, ranges, and increments. You can find the exact arguments needed by a widget on the widget function’s help page, (e.g., `?selectInput`).
+
+The `ui.R` script below makes the app pictured above. Change your own App-1 `ui.R` script to match it, and then launch the app (`runApp("App-1")`, select Run App, or use shortcuts).
+
+Play with each widget to get a feel for what it does. Experiment with changing the values of the widget functions and observe the effects. If you are interested in the layout scheme for this Shiny app, read the description in the application layout guide. This lesson will not cover this slightly more complicated layout scheme, but it is interesting to note what it does.
+
+```
+# ui.R
+
+shinyUI(fluidPage(
+  titlePanel("Basic widgets"),
+  
+  fluidRow(
+    
+    column(3,
+      h3("Buttons"),
+      actionButton("action", label = "Action"),
+      br(),
+      br(), 
+      submitButton("Submit")),
+    
+    column(3,
+      h3("Single checkbox"),
+      checkboxInput("checkbox", label = "Choice A", value = TRUE)),
+    
+    column(3, 
+      checkboxGroupInput("checkGroup", 
+        label = h3("Checkbox group"), 
+        choices = list("Choice 1" = 1, 
+           "Choice 2" = 2, "Choice 3" = 3),
+        selected = 1)),
+    
+    column(3, 
+      dateInput("date", 
+        label = h3("Date input"), 
+        value = "2014-01-01"))   
+  ),
+  
+  fluidRow(
+    
+    column(3,
+      dateRangeInput("dates", label = h3("Date range"))),
+    
+    column(3,
+      fileInput("file", label = h3("File input"))),
+    
+    column(3, 
+      h3("Help text"),
+      helpText("Note: help text isn't a true widget,", 
+        "but it provides an easy way to add text to",
+        "accompany other widgets.")),
+    
+    column(3, 
+      numericInput("num", 
+        label = h3("Numeric input"), 
+        value = 1))   
+  ),
+    
+  fluidRow(
+    
+    column(3,
+      radioButtons("radio", label = h3("Radio buttons"),
+        choices = list("Choice 1" = 1, "Choice 2" = 2,
+                       "Choice 3" = 3),selected = 1)),
+    
+    column(3,
+      selectInput("select", label = h3("Select box"), 
+        choices = list("Choice 1" = 1, "Choice 2" = 2,
+                       "Choice 3" = 3), selected = 1)),
+    
+    column(3, 
+      sliderInput("slider1", label = h3("Sliders"),
+        min = 0, max = 100, value = 50),
+      sliderInput("slider2", "",
+        min = 0, max = 100, value = c(25, 75))
+      ),
+    
+    column(3, 
+      textInput("text", label = h3("Text input"), 
+        value = "Enter text..."))   
+  )
+
+))
+```
+
+### Recap
+
+It is easy to add fully functional widgets to your Shiny app.
+
+* Shiny provides a family of functions to create these widgets.
+
+* Each function requires a name and a label.
+
+* Some widgets need specific instructions to do their jobs.
+
+* You add widgets to your Shiny app just like you added other types of HTML content (see Lesson 2)
+
+See the Shiny Widgets Gallery for more examples.
+

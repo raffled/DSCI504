@@ -1,0 +1,610 @@
+---
+title: 'ggvis: Advanced Topics'
+author: "jharner"
+date: "March 31, 2015"
+output: html_document
+---
+
+## Guides: Axes and Legends
+
+When polishing graphics for production you often spend a lot of time getting the axes and legends looking exactly right. This vignette describes the ggvis functions that allow you to control plot guides: axes and legends.
+
+In `ggvis`, axes and legends are related to scales, but are described separately. This is different to `ggplot2`, where the scale objects controlled both the details of the mapping and how it should be displayed on the plot. This makes `ggvis` a little more verbose, but it also makes it more flexible.
+
+Currently, `ggvis` guides are a close map to their `vega` equivalents. For reference, you may also want to read the vega documentation for the underlying axis and legend components.
+
+### Common properties
+
+Axes and legends have relatively few components in common, but the ones that they share are particularly important.
+
+* `scale` (axis), and `stroke`/`fill`/`size`/`shape` (legend) describe which scale (or scales in the case of a legend) will be displayed on the guide
+```
+add_axis(vis, "x")
+add_axis(vis, "y")
+add_legend(vis, "stroke")
+add_legend(vis, "size")
+# Display multiple scales in one legend:
+add_legend(vis, "stroke", "size")
+```
+
+* `title`, a string describing the guide
+```
+add_axis(vis, "x", title = "My x variable")
+add_legend(vis, "fill", title = "Some interesting colours")
+```
+
+* `values`, used to override the default placement of ticks on an axis or gradient legend, or visible legend labels.
+
+* `format`, a d3 formatting specification that controls how values are converted to strings.
+
+#### Custom styles
+
+Finally, both axes and legends share `properties`, which is a named list of `props()` that is applied to specified components of the axis or legend. For axes, you can set the properties of the ticks (or majorTicks and minorTicks separately), the labels and axis. For legends, you can set properties of the title, label, symbols (for categorical scales), gradient (for continuous scales), and legend.
+
+Currently, if you’re using multiple scales, you’ll need to adjust properties to make sure that your legends don’t overlap.
+```{r}
+library(ggvis)
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  add_axis("x", properties = axis_props(
+    axis = list(stroke = "red", strokeWidth = 5),
+    grid = list(stroke = "blue"),
+    ticks = list(stroke = "blue", strokeWidth = 2),
+    labels = list(angle = 45, align = "left", fontSize = 20)
+  ))
+```
+
+### Axis
+
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>% layer_points()
+
+mtcars %>% ggvis(~wt, ~mpg) %>% layer_points() %>%
+  add_axis("x", title = "Weight") %>%
+  add_axis("y", title = "Miles per gallon")
+
+# Use title offset to push the titles further away
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  add_axis("x", title = "Weight", title_offset = 50) %>%
+  add_axis("y", title = "Miles per gallon", title_offset = 50)
+```
+
+#### Tick sizes and padding
+
+There are five options that control the appearance of ticks:
+
+* `subdivide`: the number of minor ticks between each major tick.
+
+* `tick_padding`: the padding between ticks and labels (in pixels)
+
+* `tick_size_major`, `tick_size_minor`, `tick_size_end`: the size of the major, minor and end ticks. By default they are all the same size as the major ticks, but you can set them separately.
+
+```{r}
+# Change ticks and subdivide with minor ticks
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  add_axis("x", subdivide = 9, values = 1:6) %>%
+  add_axis("y", subdivide = 1, values = seq(10, 34, by = 2))
+
+# Make the minor ticks smaller and the end ticks longer
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  add_axis("x", subdivide = 9, values = 1:6, tick_size_major = 10,
+    tick_size_minor = 5, tick_size_end = 15, tick_padding = 20)
+```
+
+#### Orientation
+
+You can control the placement of the axes with the orient argument:
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  add_axis("x", orient = "top") %>%
+  add_axis("y", orient = "right")
+```
+
+If you want axes on both sides, just add two axes:
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  add_axis("x", orient = "bottom") %>%
+  add_axis("x", orient = "top")
+```
+
+You can even put multiple scales on one side:
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  add_axis("x") %>%
+  add_axis("x", offset = 40, grid = FALSE)
+```
+
+This is probably more useful if you have multiple x or y position scales, but I’ve already discussed that enough times in these vignettes given how much I dislike them.
+
+### Legends
+
+#### Combining legends
+
+Unlike `ggplot2`, by default, `ggvis` will not combine scales based on the same underlying variables into a single legend. Instead you must do this yourself by supplying the name of multiple scales to one legend:
+```{r}
+mtcars2 <- mtcars %>% dplyr::mutate(cyl = ordered(mtcars$cyl))
+mtcars2 %>% ggvis(~mpg, ~wt, size = ~cyl, fill = ~cyl) %>% layer_points()
+
+mtcars2 %>% ggvis(~mpg, ~wt, size = ~cyl, fill = ~cyl) %>% layer_points() %>%
+  add_legend(c("size", "fill"))
+```
+
+## Properties and scales
+
+Understanding how properties and scales work in `ggvis` an important step to mastering basic static plots, and is also necessary for great interactive graphics.
+
+In this chapter, you will learn:
+
+* the convenient `props()` wrapper which makes the most common types of property mappings available through a concise interface
+
+* the `prop()` function, which is more verbose, but gives you full control over all options
+
+* what scales do, how properties and scales are connected, how you can override the defaults.
+
+Note that unlike `ggplot2`, scales do not control the appearance of their guides: see the axes and legends vignette for how to customise their display.
+
+### The `props()` wrapper
+
+Every `ggvis` mark is associated with a set of properties that governs how it is displayed. These properties can be constant values (like 5, “blue”, or “square”), or mapped to variables in your dataset. `ggplot2` syntax made a distinction between mapping variables and setting constants. For example, in `ggplot2`, you might say:
+```
+geom_point(aes(x = wt, y = mpg), colour = "red", size = 5)
+```
+
+But in `ggvis`, everything is a property:
+```
+layer_paths(x = ~wt, y = ~mpg, stroke := "red", strokeWidth := 5)
+```
+
+This section introduces `props()`, a convenient function for creating property objects and binding them to property names. The next chapter shows you how to create the property objects by hand, giving you more control over the specification at the cost of some extra typing.
+
+#### Mapping vs setting (scaled vs unscaled)
+
+In a data graphic, there is a mapping between values and visual properties. A value is something like 5, or “red”, or the numbers in a column of a data frame. A visual property is something like the x-position, y-position, size, or color of a point, rectangle, or other visual object.
+
+Compared to `ggplot2`, the controls in ggvis may be a little confusing. However, `ggplot2` has a number of special cases that are handled under the hood. Once you get the hang of `props()`, you should find it simpler than `aes()` and various ways of setting aesthetics in `ggplot2`.
+
+The `props()` function creates objects that govern the relationship between values and properties. One important characteristic is whether the value-property relationship is scaled or unscaled. These are sometimes called mapping (for scaled values) and setting (unscaled values). When the relationship is scaled, the data values go through a mapping function that results in values in the visual property space.
+
+For example, suppose that you want to use a variable in a data set on the x axis, and the data values are numbers from 55 to 75. If the relationship is scaled, then the data value 55 is typically mapped to an x position on the left side of the plot, the data value 75 is mapped to an x position on the right side of the plot, and values in between are linearly mapped somewhere between those positions.
+
+If the relationship is unscaled, then the data values 55 to 75 would be used directly by the rendering engine. In the case of ggvis and Vega, a value of 55 means “55 pixels from the left edge”, and a value of 75 means “75 pixels from the left edge”. No matter how the plot is resized, those pixel positions would remain the same.
+
+The `props()` function uses the `=` operate for mapping (scaled), and the `:=` operator for setting (unscaled). It also uses the `~` operator to indicate that an expression should be evaluated in the data (and in ggvis, the data can change); without the `~` operator, the expression is evaluated immediately in the current environment. Generally speaking, you’ll want to use `~` for variables in the data, and not use it for constant values.
+
+Here are some examples of how to use `=` (mapping) and `:=` (setting), as well as `~` (evaluated in data) or not.
+
+* `props(x = ~displ, y = ~mpg)`: map engine displacement (in the data) to x and miles per gallon to y
+
+* `props(stroke := "red", fill := "blue")`: set the stroke colour to red and the fill colour to blue.
+
+* `props(x = ~displ, y := 10)`: map displacement to xand set the y position to 10 pixels (for unscaled y values, the origin is at the top).
+
+Those examples follow a common pattern: `=` is always scaled, and `:=` is never scaled. `~` is always used with the name of the variable. What if you try the opposite?
+
+* `props(x = 0)`: sets the x position to the data value 0
+
+It’s also possible provide a scaled constant instead of a raw constant. That’s useful when you want to label different layers in a plot:
+```{r}
+mtcars %>% ggvis(x = ~wt, y = ~mpg) %>%
+  layer_points() %>%
+  layer_model_predictions(model = "lm", stroke = "lm") %>%
+  layer_smooths(stroke = "loess")
+```
+
+Note: this isn’t currently supported in ggvis because of a limitation of vega.
+
+#### Valid properties
+
+Not all marks support all properties. The complete list of all properties is available in `?marks`, and mark functions will check that you’ve supplied them valid properties, and will endeavour to provide you a helpful suggestion:
+```
+mtcars %>% ggvis() %>% layer_lines(strke = ~cyl)
+#> Error: Unknown properties: strke. Did you mean: stroke?
+mtcars %>% ggvis(strke = ~cyl) %>% layer_lines()
+#> Error: Unknown properties: strke. Did you mean: stroke?
+```
+
+#### Capture of local variables
+
+Variable properties can refer to both variables in the dataset and variables in the local environment:
+```{r}
+df <- data.frame(x = 1:10)
+f <- function(n) {
+  df %>% ggvis(x = ~x, y = ~x ^ n) %>% layer_paths()
+}
+f(1)
+f(2)
+f(4)
+```
+
+Technically, `ggvis` uses the environment captured by the formula when it is created, which may be important if you’re generating formulas in one function and using them in another. You can always override the environment by calling `prop()` and supplying the env argument.
+```
+prop()
+```
+
+A prop has two key properties:
+
+* value: which can be a constant, the name of a variable (or an expression involving one or more variables), or an interactive input. An interactive input must yield either a constant, or an variable name/expression.
+
+* the scale: if scaled, a vega scale is in charge of converting the data value to something that makes sense as a visual property. If unscaled, the value is used as is.
+
+Unscaled is the equivalent of using scale_identity in `ggplot2`.
+
+#### Special evaluation and variables
+
+`prop()` doesn’t do any special evaluation which means that you if you want a variable, you need to supply the name of a property, and a quoted expression or a one-sided formula:
+```{r}
+prop("x", quote(mpg))
+prop("y", ~cyl)
+```
+
+If you have the name of a variable as a string, you can convert it a name with `as.name()`:
+```{r}
+var <- "mpg"
+prop("x", as.name(var))
+```
+
+If you have an R expression as a string, `parse()` it then extract the first element of the result:
+```{r}
+expr <- "mpg / wt"
+prop("x", parse(text = expr)[[1]])
+```
+
+### Properties -> scales
+
+Like in `ggplot2`, scales control the mapping between data values and values interpreted by the drawing device. Scales are added to the top-level plot specification and are usually created with dscale (short for default scale):
+```{r}
+# Override the default data limits:
+mtcars %>% ggvis(~disp, ~wt) %>%
+  layer_points() %>%
+  scale_numeric("x", domain = c(50, 500), nice = FALSE) %>%
+  scale_numeric("y", domain = c(0, 6), nice = FALSE)
+```
+
+Compared to `ggplot2`, `ggvis` has far fewer scales (3 vs 70), with each function doing much more. The three basic scales in `ggvis`, corresponding to the three basic vega scales are:
+
+* `scale_quantitative`: for quantitative, numeric values  
+* `scale_ordinal`: for qualitative, categorical values  
+* `scale_time`: for date/time values
+
+The vega scales are in turn relatively simple wrappers for D3 scales so if you can’t find the details in these docs, or in the vega docs, you may need to look in the D3 docs. Fortunately the arguments are by and large named the same across all three systems, although ggvis uses underscores while vega and D3 use camelCase.
+
+Each (scaled) property needs a scale. By default, scales are added so that every scaled property gets a scale with the same name as the property (with a few exceptions `y2` to `y`, `x2` to `x`, `fillOpacity` and `strokeOpacity` to `opacity` and so on.). See `?add_default_scales` for details.
+
+#### Scale arguments
+
+The scales share the following arguments:
+
+* `name`: a string identifier for the scale. By default, this is the name of the property it is associated with - i.e. the scale for the x values is called “x”, but it doesn’t have to be, and the examples below show some cases where you need this extra flexibility.
+
+* `domain`: the input data values to the scale. If left blank, these will be learned from the properties that use this scale. But you can override it if you want to expand or restrict, or you want to match domains across multiple plots so that they’re easier to compare. `domain` is equivalent to limits in R graphics. For quantiative scales, you can use a missing value to only constrain one side of the domain.
+
+* `range`: the output visual values from the scale. For quantiative scales this is usually a vector of length two, for ordinal scales, it’s a vector the same length as the domain. Vega interprets some special values: “width”, “height”, “shapes”, “category10” (10 categorical colours).
+
+* `reverse`: a boolean flag that will flip the order of the range.
+
+`scale_quantitative` and `scale_time` also share a few other properties:
+
+* `nice`: use nice axis labels? The algorithm is described in the D3 document
+
+* `zero`: include a zero in the scale?
+
+* `clamp`: clamp any values outside the domain to the min/max?
+
+#### Default scales
+
+Because the range of a scale is usually determined by the type of variable, `ggvis` provides the dscale function to automatically retrieve a default scale given a property name and variable type:
+```
+scale_numeric(vis, "x")
+scale_numeric(vis, "y")
+scale_nominal(vis, "shape")
+```
+
+You can also provide other arguments to the underlying scale:
+```
+scale_numeric(vis, "x", domain = c(10, 100))
+scale_numeric(vis, "x", trans = "log")
+````
+
+So `dscale()` is usually a better way to create new scales that starting from the underlying scale objects.
+
+#### Custom scales
+
+You can add your own scales for properties that don’t otherwise have defaults. For example, imagine you wanted to use the font of a label to represent some data. There’s no default scale for font, but you could create one yourself:
+```{r}
+df <- data.frame(x = runif(5), y = runif(5),
+  labels = c("a", "b", "b", "a", "b"))
+df %>% ggvis(~x, ~y, text := ~labels, font = ~labels, fontSize := 40) %>%
+  layer_text() %>%
+  scale_ordinal("font", range = c("Helvetica Neue", "Times New Roman"))
+```
+
+Note the use of `text := ~labels`: we don’t want to scale the labels - the raw values already make sense in the visual space.
+
+#### Multiple scales for one property
+
+Generally, you will override the default name of a scale in order to use more scales than the default. You could do this in order to create a dual-axis chart (which is generally a bad idea - read this paper for more details). If you do this, you will also need to add a scale object.
+```{r}
+mtcars %>% ggvis(y = ~mpg) %>%
+  layer_points(prop("x", ~disp, scale = "xdisp")) %>%
+  layer_points(prop("x", ~wt, scale = "xwt"), fill := "blue") %>%
+  add_axis("x", "xdisp", orient = "bottom") %>%
+  add_axis("x", "xwt", orient = "bottom", offset = 20,
+    properties = axis_props(labels = list(fill = "blue")))
+```
+
+#### Multiple properties for one scale
+
+You could also force `ggplot2` to use the same scale for properties that would otherwise use different scales. I’m not sure of a useful example of this, except to force stroke and fill to use the same scale:
+```{r}
+df <- data.frame(x = 1:5, y = 1:5, a = runif(5), b = -runif(5))
+
+df %>% 
+  ggvis(x = ~x, y = ~y, stroke = ~a, fill = ~b, 
+    strokeWidth := 5, size := 1000) %>%
+  layer_points() %>%
+  add_legend("stroke", properties = legend_props(legend = list(y = 50)))
+
+df %>% 
+  ggvis(x = ~x, y = ~y, stroke = ~a, prop("fill", ~b, scale = "stroke"),
+    strokeWidth := 5, size := 1000) %>%
+  layer_points() %>%
+  add_legend("stroke", properties = legend_props(legend = list(y = 50)))
+```
+
+In this case we don’t need to manually add the correct scale, because ggvis has detected it for us automatically.
+
+#### Property values
+
+Vega renders either `svg` or `canvas`, but fortunately most properties are shared across `svg` or `canvas`. The following list describes what the property values mean and the set of allowable values.
+
+* `x`, `x2`, `width`, `y`, `y2`, `height`, `strokeWidth`, `innerRadius`, `outerRadius`: pixels. Note that by convention (0, 0) is located in the top-left, so y values are relative to the top of the screen and x values are relative to the left of the screen (as opposed to R where (0,0) is on the bottom right). Pixel positions should be greater than 0.
+
+* `size`: area, in pixels. Greater than 0.
+
+* `opacity`, fillOpacity, strokeOpacity: a number between 0 and 1
+
+* `stroke`, fill: colours
+
+* `startAngle`, `endAngle`: angle in radians
+
+* `interpolate`: “linear”, “step-before”, “step-after”, “basis”, “basis-open”, “cardinal”, “cardinal-open”, “monotone”. See the D3 docs for what they mean.
+
+* `tension`: a number between 0 and 1 that controls a tension parameter to some interpolants.See the D3 docs for more details.
+
+* `url`: a url.
+
+* `align`: “left”, “right”, “center”.
+
+* `baseline`: “top”, “middle”, “bottom”
+
+* `text`: a string
+
+* `dx`, `dy`: pixel offsets from anchor point
+
+* `angle`: an angle in degrees
+
+* `font`: the name of a font available from the browser.
+
+* `fontWeight`: a font weight, as a string (“normal”, “bold”, “lighter”, “bolder”) or number (100, 200, 300, 400, 500, 600, 700, 800, 900).
+
+* `fontStyle`: “normal”, “italic”, “oblique”
+
+## Layers
+
+In `ggvis`, there are two types of layers. Simple layers correspond directly to vega marks and represent geometric primitives like points, lines and rectangles. Compound layers combine data transformations with one or more simple layers.
+
+### Marks
+
+Marks are the fundamental building block. Each type of mark represents a different type of geometric object, and so in some sense they are the equivalent of geoms in `ggplot2`. However, there are a far fewer marks than geoms because marks tend to be more capable, and because they never perform any statistical transformation.
+
+Most of the time you don’t use marks directly - you instead use their layer wrappers. That’s because most of the time you don’t want to think about the difference between simple and compound layers - you just want to make a plot. But if you want to understand more deeply how things work, or create your own layer functions, it’s important to understand the distinction.
+
+`ggvis` exposes five vega marks that have very similar `ggplot2` equivalents:
+```
+mark_area() = geom_ribbon(), geom_area()
+mark_path() = geom_path(), geom_line()
+mark_rect() = geom_rect(), geom_bar(), geom_tile()
+mark_point() = geom_point()
+mark_text() = geom_text()
+```
+
+There are two marks that have no equivalent in ggplot2:
+
+* `mark_arc()` allows you to draw arcs. You could accomplish something similar in `ggplot2` with `geom_rect()` with `coord_polar()` but it was relatively inflexible and required contorting your brain a bit.
+
+* `mark_image()` allows you to place arbitrary images on a plot. There is currently little additional support for this in `ggvis`, so you’ll need to make sure the images are publicly available somewhere. If you’ve found a compelling use-case for `layer_image()`, let us know so we can consider how to better support it.
+
+And two vega marks that are not currently implemented in `ggvis`:
+
+* Support for the group mark will be added in a future major release that will add support for facetting/subplots.
+
+* I can’t currently see any use for the path mark, which takes `svg` path specifications as input.
+
+All marks take two optional arguments which are only needed if you want to override the values inherited from parent:
+
+* `props`, a `props()` object used to add any custom override for this layer  
+* `data`, an optional dataset to override the data inherited from the parent
+
+### Adding a layer to a plot
+
+For example, the following two plots are equivalent. In the first one, the data and props are defined at the top level and inherited by the mark, and in the second, they are defined in the mark itself. Note that the order of the arguments to `ggvis()` and the mark function are different: this is because you’ll usually set the data in top-level plot object, and usually only override props in the mark.
+```{r}
+mtcars %>% ggvis(x = ~wt, y = ~mpg, stroke := "red") %>% layer_points()
+mtcars %>% ggvis() %>% layer_points(x = ~wt, y = ~mpg, stroke := "red")
+```
+
+### Mark details
+
+The following sections describe particular details related to individual marks.
+```
+layer_rects
+```
+Must set two of `x`, `x2`, and `width`, and two of `y`, `y2` and `height`.
+
+If you have an ordinal scale, set width and/or height to `prop_band()` to occupy the complete band corresponding to that categorical value.
+```{r}
+hec <- as.data.frame(xtabs(Freq ~ Hair + Eye, HairEyeColor))
+
+hec %>% 
+  ggvis(~Hair, ~Eye, fill = ~Freq) %>% 
+  layer_rects(width = band(), height = band()) %>%
+  scale_nominal("x", padding = 0, points = FALSE) %>%
+  scale_nominal("y", padding = 0, points = FALSE)
+```
+
+`layer_paths`
+
+`layer_path` produces lines if fill is empty, and polygons if it is set to a value.
+```{r}
+df <- data.frame(x = c(1, 1, 2, 2), y = c(2, 1, 1, 2))
+df %>% ggvis(~x, ~y, stroke := "red") %>% layer_paths()
+# Add a fill colour to make it a polygon
+df %>% ggvis(~x, ~y, fill := "red") %>% layer_paths()
+```
+
+You can not currently set the component of lines to different colours.
+
+To create a line that spans the complete range of the plot, use `prop_group()`:
+```
+ggvis() %>%
+  layer_points(x = ~disp, y = ~wt, data = mtcars) %>%
+  layer_paths(x := 0, y = ~mean(mtcars$wt, x2 := prop_group())) %>%
+  layer_paths(x = ~mean(mtcars$disp), y := 0, y2 := prop_group())
+```
+
+Note that this won’t work because `prop_group()` hasn’t been written yet.
+
+`layer_ribbons`
+
+You need to set two of `y`, `y2` and `height`:
+```{r}
+df <- data.frame(x = 1:10, y = (1:10) ^ 2)
+df %>% ggvis(~x, ~y, y2 := 0) %>% layer_ribbons()
+
+# Set height in pixels
+df %>% ggvis(~x, ~y, height := 20) %>% layer_ribbons()
+```
+
+Height can only be mapped to a constant, because it does not have an obvious scale associated with it. You could force height to use the `y` scale, but that doesn’t work - the area hangs below the `y` line, and increasing the value of `height` makes the area narrower! What’s going on is that the underlying graphics device has (0, 0) in the top-left corner, and so the y-scale is upside down. As you increase height, it’s mapped like a y variable so bigger values are further away.
+```{r}
+df %>% ggvis(~x, ~y, prop("height", 80, scale = "y")) %>% layer_ribbons()
+
+df <- data.frame(x = 1:10, y = (1:10) ^ 2)
+df %>% ggvis(~x, ~y) %>%
+  layer_ribbons(prop("height", input_slider(0, 100), scale = "y")) %>%
+  layer_paths(stroke := "red", strokeWidth := 10)
+```
+
+If you want to set the height in data units, you need to compute the offsets yourself:
+```{r}
+df %>% ggvis(~x, y = ~y - 2, y2 = ~y + 2) %>% layer_ribbons()
+```
+
+The distinction between dimension and location is important in other graphics system, and a grid vignette `vignette("locndimn", package = "grid")` has a little more information about how things work in grid.
+
+#### Grouping
+
+In `ggplot2`, grouping was a special aesthetic; in `ggvis`, grouping is a data transformation: use `group_by()` to split your data up into pieces given a specified variable, or `auto_split()` to split up by any categorical variable included in the plot:
+```{r}
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  group_by(cyl) %>%
+  layer_paths()
+
+mtcars %>% ggvis(~wt, ~mpg) %>%
+  layer_points() %>%
+  auto_group() %>%
+  layer_paths()
+```
+
+Some layers, like `layer_line()`, `include auto_split()` so will split automatically:
+```{r}
+mtcars %>% 
+  dplyr::mutate(cyl2 = factor(cyl)) %>% 
+  ggvis(~wt, ~mpg, stroke = ~cyl2) %>% 
+  layer_lines()
+```
+
+#### Compound layers
+
+Simple layers map directly to vega’s primitive drawing functions (marks). Compound layers combine data transformation and simple layers (potentially multiple of each) to more sophisticated graphics. For example:
+
+* layer_histogram() = transform_bin() + mark_rect()  
+* layer_freqpoly() = transform_bin() + mark_path()  
+* layer_smooth() = transform_smooth() + (mark_path() + mark_area())  
+
+All layers start with `layer_`. The source is usually relatively simple - the complexity generally comes when figuring out how to map properties supplied to the layer to individual marks:
+```{r}
+layer_smooths
+layer_histograms
+```
+
+If you find yourself using a set of marks commonly, it might be worth writing your own layer function.
+
+### Conversion from ggplot2
+
+The following list provides a conversion from ggplot2 geoms to vega marks. However, because `ggvis` currently provides few transformations, many translations don’t currently exists - but they are on the roadmap and will be added over time.
+
+See the web site.
+
+## Data hierarchy
+
+Compared to `ggplot2`, `ggvis` has a much richer data hierarchy. In `ggplot2`, you could define a data set and aesthetic mappings in the base plot, and override them in each layer, but since layers could not contain other layers, there were only ever two levels in the tree. `ggvis` is more flexible because `ggvis` nodes (the equivalent of `ggplot2` layers) can contain child nodes. This makes it possible to have whatever level of hierarchy that is best suited to your plot.
+
+This is also related to a confusion in `ggplot2` where geom often were actually aliases for a `geom` + combination. For example:
+
+* `geom_histogram` = `geom_bar` + `stat_bin`  
+* `geom_smooth` = `geom_smooth` + `stat_smooth`
+
+In `ggvis`, there is a clear demarkation between marks (pure drawing) and layers (transformation + drawing). The low-level functions for drawing a mark start with `emit_`, and then the type of mark. For example:
+
+* `layer_histograms` = `compute_bin` + `emit_rects`
+* `layer_smooths` = `layer_model_predictions` + (`emit_paths` + `emit_ribbons`)
+
+`ggplot2` needed special geoms like `geom_smooth` because the data hierarchy was not deep enough, and there was no standard way for a stat to take the output of another stat as it’s input, and no way for a stat to feed data to multiple layers without either creating a custom geom or duplicating the stat multiple times.
+
+### Data pipeline
+
+A `ggvis` specification creates a data pipeline that flows from the starting node to all of the leaves (marks).
+
+### Combining props
+
+In `ggplot2`, layers had an `inherit.aes` property which control whether or not a layer would inherit properties from the parent dataset - this is particularly useful when writing functions that add annotation to arbitrary plots - you don’t want other properties that the user set interfering with your layer. In `ggvis`, that’s now a property of `props()`: `props(inherit = FALSE)`.
+
+To see how `ggvis` combines properties, you can use the merge_props function:
+```
+merge_props <- ggvis:::merge_props
+merge_props(props(x = ~x), props(y = ~y))
+
+merge_props(props(x = ~a), props(x = ~b))
+
+merge_props(props(x = ~a, y = ~a), props(x = ~b, inherit = FALSE))
+```
+
+### Case studies
+
+#### Minard’s march
+```{r}
+library(ggplot2)
+library(HistData)
+ggplot(Minard.cities, aes(x = long, y = lat)) +
+  geom_path(
+    aes(size = survivors, colour = direction, group = group),
+    data = Minard.troops
+  ) +
+  geom_point() +
+  geom_text(aes(label = city), hjust=0, vjust=1, size=4)
+```
+
+In `ggvis` , we can make it a little more clear that we have one marked based on survivors dataset and two marks based on the `cities` dataset.
+```{r}
+ggvis(data = NULL, x = ~long, y = ~lat) %>%
+  layer_points(size = ~survivors, stroke = ~direction, data = Minard.troops) %>%
+  layer_text(text := ~city, dx := 5, dy := -5, data = Minard.cities)
+```

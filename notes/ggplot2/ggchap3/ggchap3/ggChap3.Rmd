@@ -1,0 +1,218 @@
+---
+title: 'ggChap 3: Mastering the grammar'
+author: "jharner"
+date: "February 17, 2015"
+output: html_document
+---
+
+## 3.1 Introduction
+
+The theoretical basis of `ggplot2` is based on a layered grammar of graphics. 
+
+The grammar:
+
+* makes it easier for you to iteratively update a plot, changing a single feature at a time;  
+* suggests the high-level aspects of a plot that can be changed, giving you a framework to think about graphics;  
+* shortens the distance from mind to paper;  
+* encourages the use of graphics customised to a particular problem.  
+
+## 3.2 Fuel economy data
+
+The fuel economy dataset, `mpg`, is analyzed. It records make, model, class, engine size, transmission and fuel economy for a selection of US cars in 1999 and 2008.
+```{r}
+library(ggplot2)
+data(mpg)
+head(mpg)
+```
+
+## 3.3 Building a scatterplot
+
+Construct a scatterplot of two continuous variables (engine displacement and highway mpg), with points coloured by a third variable (number of cylinders):
+```{r}
+qplot(displ, hwy, data = mpg, colour = factor(cyl))
+```
+
+#### Mapping aesthetics to data
+
+A scatterplot represents each observation as a point, positioned according to the value of two variables. As well as a horizontal and vertical position, each point also has a size, a colour and a shape. These attributes are called *aesthetics*, and are the properties that can be perceived on the graphic. Each aesthetic can be mapped to a variable, or set to a constant value.
+
+`displ` is mapped to horizontal position, `hwy` to vertical position and `cyl` to colour. Size and shape are not mapped to variables, but remain at their (constant) default values.
+
+Once we have these mappings we can create a new dataset that records this
+information. This new dataset is a result of applying the aesthetic mappings to the original data. 
+```{r}
+# Instead of using points to represent the data, we could use other
+# geoms like lines (left) or bars (right).  Neither of these geoms
+# makes sense for this data, but they are still grammatically valid.
+qplot(displ, hwy, data=mpg, colour=factor(cyl), geom="line") + 
+  theme(legend.position="none")
+qplot(displ, hwy, data=mpg, colour=factor(cyl), geom="bar", 
+  stat="identity", position = "identity") + 
+  theme(legend.position="none")
+```
+
+Points, lines and bars are all examples of geometric objects, or geoms. Geoms determine the “type” of the plot. Plots that use a single geom are often given a special name, e.g., scatterplot (point), bubbleplot(point with size mapped to a variable), barchart (bar), box-and-whisker plot (boxplot), and line chart (line).
+
+More complex plots with combinations of multiple geoms don’t have a special name.
+```{r}
+# More complicated plots don't have their own names.  This plot  adds a regression # line to each group.  What would you call this plot?
+qplot(displ, hwy, data=mpg, colour=factor(cyl)) + 
+  geom_smooth(data= subset(mpg, cyl != 5), method="lm")
+```
+
+#### Scaling
+
+This data resulting from applying the aesthetic mappings to the original data has no meaning to the computer. We need to convert them from data units (e.g., litres, miles per gallon and number of cylinders) to physical units (e.g., pixels and colours) that the computer can display. This conversion process is called *scaling* and performed by scales. Now that these values are meaningful to the computer, they may not be meaningful to us:  
+
+* colours are represented by a six-letter hexadecimal string;  
+* sizes by a number;  
+* shapes by an integer.  
+
+
+Here we have three aesthetics that need to be scaled:    
+
+* horizontal position (x),  
+* vertical position (y),  
+* and colour.   
+
+Scaling position is easy because we are using the default linear scales. We need only a linear mapping from the range of the data to [0, 1]. We use [0, 1] instead of exact pixels because the drawing system that `ggplot2` uses, `grid`, takes care of that final conversion for us. A final step determines how the two positions (x and y) are combined to form the final location on the plot. This is done by the coordinate system, or `coord`. In most cases this will be Cartesian coordinates, but it might be polar coordinates, or a spherical projection used for a map.
+
+The process for mapping the colour is a little more complicated, as we have
+a non-numeric result: colours. However, colours can be thought of as having
+three components, corresponding to the three types of colour-detecting cells in
+the human eye. These three cell types give rise to a three-dimensional colour
+space. Scaling then involves mapping the data values to points in this space.
+There are many ways to do this, but here since cyl is a categorical variable we map values to evenly spaced hues on the colour wheel.
+
+As well as aesthetics that have been mapped to variable, we also include aesthetics that are constant. We need these so that the aesthetics for each point are completely specified and R can draw the plot.
+
+To create a complete plot we need to combine graphical objects from three sources:  
+
+* the data, represented by the point geom;  
+* the scales and coordinate system, which generate axes and legends so that we can read values from the graph;  
+* and plot annotations, such as the background and plot title.  
+
+## 3.4 A more complex plot
+
+Now add three new components to the mix:  
+
+* facets  
+* multiple layers
+* statistics
+
+The facets and layers expand the data structure described above: each facet panel in each layer has its own dataset.
+
+You can think of this as a 3d array: the panels of the facets form a 2d grid, and the layers extend upwards in the 3rd dimension. In this case the data in the layers is the same, but in general we can plot different datasets on different layers.
+
+```{r}
+# A more complex plot with facets and multiple layers.
+qplot(displ, hwy, data=mpg, facets = . ~ year) + geom_smooth(method="lm")
+```
+The smooth layer is different to the point layer because it doesn’t display
+the raw data, but instead displays a statistical transformation of the data.
+
+Specifically, the smooth layer fits a smooth line through the middle of the data. This requires an additional step in the process described above: after mapping the data to aesthetics, the data is passed to a statistical transformation, or *stat*, which manipulates the data in some useful way. In this example, the stat fits the data to a *loess smoother*, and then returns predictions from evenly spaced points within the range of the data.
+
+We need extra steps when we get to the scales. This is because we now have multiple datasets (for the different facets and layers) and we need to make sure that the scales are the same across all of them. Scaling actually occurs in three parts: *transforming*, *training* and *mapping*.
+
+* Scale transformation occurs before statistical transformation so that statistics are computed on the scale-transformed data. This ensures that a plot of log(x) vs. log(y) on linear scales looks the same as x vs. y on log scales. There are many different transformations that can be used, including taking square roots, logarithms and reciprocals.  
+
+* After the statistics are computed, each scale is trained on every dataset from all the layers and facets. The training operation combines the ranges of the individual datasets to get the range of the complete data. Without this step, scales could only make sense locally and we wouldn’t be able to overlay different layers because their positions wouldn’t line up. Sometimes we do want to vary position scales across facets (but never across layers).  
+
+* The scales map the data values into aesthetic values. This is a local operation: the variables in each dataset are mapped to their aesthetic values producing a new dataset that can then be rendered by the geoms.  
+
+See the following figure for the plot generation process:  
+
+![Plot Generation](plotGen.png)
+
+## 3.5 Components of the layered grammar
+
+The data, mappings, stat, geom and position adjustment form a layer. A plot may have multiple layers, as in the example where we overlaid a smoothed line on a scatterplot. All together, the layered grammar defines a plot as the combination of:
+
+* A default dataset and set of mappings from variables to aesthetics.    
+* One or more layers, each composed of a geometric object, a statistical transformation, and a position adjustment, and optionally, a dataset and
+aesthetic mappings.  
+* One scale for each aesthetic mapping.
+* A coordinate system.
+* The faceting specification.
+
+### 3.5.1 Layers
+
+Layers are responsible for creating the objects that we perceive on the plot. A layer is composed of four parts:  
+
+* data and aesthetic mapping,  
+* a statistical transformation (stat),  
+* a geometric object (geom),  
+* and a position adjustment.
+
+### 3.5.2 Scales
+
+A *scale* controls the mapping from data to aesthetic attributes, and we need a scale for every aesthetic used on a plot. Each scale operates across all the data in the plot, ensuring a consistent mapping from data to aesthetics. 
+
+A scale is a function, and its inverse, along with a set of parameters. For example, the colour gradient scale maps a segment of the real line to a path through a colour space. The parameters of the function define whether the path is linear or curved, which colour space to use (e.g., LUV or RGB), and the colours at the start and end.
+
+The inverse function is used to draw a guide so that you can read values
+from the graph. Guides are either axes (for position scales) or legends (for everything else). Most mappings have a unique inverse (i.e., the mapping function is one-to-one), but many do not. A unique inverse makes it possible to recover the original data, but this is not always desirable if we want to focus attention on a single aspect.
+
+```{r}
+# Examples of legends from four different scales.  From left to right:
+# continuous variable mapped to size, and to colour, discrete variable
+# mapped to shape, and to colour.  The ordering of scales seems
+# upside-down, but this matches the labelling of the $y$-axis: small
+# values occur at the bottom.
+x <- 1:10
+y <- factor(letters[1:5])
+qplot(x, x, size = x)
+qplot(x, x, 1:10, colour = x)
+qplot(y, y, 1:10, shape = y)
+qplot(y, y, 1:10, colour = y)
+```
+
+### 3.5.3 Coordinate system
+
+A coordinate system, or *coord* for short, maps the position of objects onto the plane of the plot. Position is often specified by two coordinates (x, y), but potential could be three or more. The Cartesian coordinate system is the most common coordinate system for two dimensions, while polar coordinates and various map projections are used less frequently.
+
+Coordinate systems affect all position variables simultaneously and differ
+from scales in that they also change the appearance of the geometric objects.
+
+```{r}
+# Examples of axes and grid lines for three coordinate systems:
+# Cartesian, semi-log and polar. The polar coordinate system
+# illustrates the difficulties associated with non-Cartesian
+# coordinates: it is hard to draw the axes well.
+x1 <- c(1,10)
+y1 <- c(1, 5)
+p <- qplot(x1, y1, geom="blank", xlab=NULL, ylab=NULL) + theme_bw()
+p 
+p + coord_trans(y="log10")
+p + coord_polar()
+```
+
+### 3.5.4 Faceting
+
+The general framework includes: faceting, a general case of the conditioned or trellised plots. This makes it easy to create small multiples each showing a different subset of the whole dataset. This is a powerful tool when investigating whether patterns hold across all conditions.
+
+## 3.6 Data structures
+
+A plot object is a list with components data, mapping (the default aesthetic mappings), layers, scales, coordinates and facet. 
+
+Plots can be created in two ways: all at once with `qplot()`, as shown in the previous chapter, or piece-by-piece with `ggplot()` and layer functions.
+
+Once you have a plot object, there are a few things you can do with it:
+
+* Render it on screen, with `print()`. This happens automatically when running interactively, but inside a loop or function, you’ll need to `print()` it yourself.  
+* Render it to disk, with `ggsave()`.
+* Briefly describe its structure with `summary()`.
+* Save a cached copy of it to disk, with `save()`. This saves a complete copy
+of the plot object, so you can easily re-create that exact plot with `load()`. Note that data is stored inside the plot, so that if you change the data outside of the plot, and then redraw a saved plot, it will not be updated.
+
+```{r}
+p <- qplot(displ, hwy, data = mpg, colour = factor(cyl))
+summary(p)
+# Save plot object to disk
+save(p, file = "plot.rdata")
+# Load from disk
+load("plot.rdata")
+# Save png to disk
+ggsave("plot.png", width = 5, height = 5)
+```

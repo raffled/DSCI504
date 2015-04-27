@@ -1,0 +1,326 @@
+---
+title: 'ggChap5: Toolbox'
+author: "jharner"
+date: "March 2, 2015"
+output: html_document
+---
+
+## 5.1 Introduction
+
+This chapter lists some of the many geoms and stats included in `ggplot2`, broken down by their purpose. 
+
+## 5.2 Overall layering strategy
+
+There are three purposes for a layer:  
+
+* To display the data.  
+
+> We plot the raw data for many reasons, relying on our skills at pattern detection to spot gross structure, local structure, and outliers. This layer appears on virtually every graphic. In the earliest stages of data exploration, it is often the only layer.  
+
+* To display a statistical summary of the data.  
+
+> As we develop and explore models of the data, it is useful to display model predictions in the context of the data. We learn from the data summaries and we evaluate the model. Showing the data helps us improve the model, and showing the model helps reveal subtleties of the data that we might otherwise miss. Summaries are usually drawn on top of the data. If you review the examples in the preceding chapter, you’ll see many examples of plots of data with an added layer displaying a statistical summary.
+
+* To add additional metadata, context and annotations.  
+
+> A metadata layer displays background context or annotations that help to give meaning to the raw data. Metadata can be useful in the background and foreground. A map is often used as a background layer with spatial data. Background metadata should be rendered so that it doesn’t interfere with your percep- tion of the data, so is usually displayed underneath the data and formatted so that it is minimally perceptible. That is, if you concentrate on it, you can see it with ease, but it doesn’t jump out at you when you are casually browsing the plot. Other metadata is used to highlight important features of the data. If you have added explanatory labels to a couple of inflection points or outliers, then you want to render them so that they pop out at the viewer. In that
+case, you want this to be the very last layer drawn.
+
+## 5.3 Basic plot types
+
+Most of the geoms below are associated with a named plot.Each is two dimensional and requires both `x` and `y` aesthetics. All understand `colour` and `size` aesthetics, and the filled geoms (`bar`, `tile` and `polygon`) also understand `fill`. The `point` geom uses `shape` and `line` and `path` geoms understand `linetype`. The geoms are used for displaying data, summaries computed elsewhere, and metadata.
+
+* `geom_area()` draws an area plot, which is a line plot filled to the y-axis (filled lines).  
+
+> Multiple groups will be stacked on top of each other.
+
+* `geom_bar(stat = "identity")()` makes a barchart.  
+
+> We need `stat = "identity"` because the default stat automatically counts values so it is essentially a 1d geom. The identity stat leaves the data unchanged. By default, multiple bars in the same location will be stacked on top of
+one another.
+
+* `geom_line()` makes a line plot.  
+
+> The group aesthetic determines which observations are connected; see Section 4.5.3 for more details. `geom_path` is similar to a `geom_line`, but lines are connected in the order they appear in the data, not from left to right.
+
+* `geom_point()` produces a scatterplot.  
+
+* `geom_polygon()` draws polygons, which are filled paths.  
+
+> Each vertex of the polygon requires a separate row in the data. It is often useful to merge a data frame of polygon coordinates with the data just prior to plotting.
+
+* geom_text() adds labels at the specified points.  
+
+> This is the only geom in this group that requires another aesthetic: `label`. It also has optional aesthetics `hjust` and `vjust` that control the horizontal and vertical position of the text; and `angle` which controls the rotation of the text.
+
+* geom_tile() makes a image plot or level plot.  
+
+> The tiles form a regular tessellation of the plane and typically have the `fill` aesthetic mapped to another variable.
+
+```{r}
+library(effects)
+library(ggplot2)
+df <- data.frame(
+  x = c(3, 1, 5),
+  y = c(2, 4, 6),
+  label = c("a","b","c")
+)
+p <- ggplot(df, aes(x, y, label = label)) +
+  xlab(NULL) + ylab(NULL)
+p + geom_point() + ggtitle("geom_point")
+p + geom_bar(stat="identity") + ggtitle("geom_bar(stat=\"identity\")")
+p + geom_line() + ggtitle("geom_line")
+p + geom_area() + ggtitle("geom_area")
+p + geom_path() + ggtitle("geom_path")
+p + geom_text() + ggtitle("geom_text")
+p + geom_tile() + ggtitle("geom_tile")
+# Titles can be enhanced by a theme.
+p + geom_polygon() +ggtitle("geom_polygon") +
+  theme(plot.title = element_text(lineheight=.8, face="bold"))
+```
+
+## 5.4 Displaying distributions
+
+geoms can be used to display distributions, depending on:  
+
+* the dimensionality of the distribution,  
+* whether it is continuous or discrete,  
+* whether you are interested in conditional or joint distribution.  
+
+For 1d continuous distributions the most important geom is the histogram. Experiment with bin placement to find a revealing view. You can change the `binwidth`, or specify the exact location of the `breaks`.
+```{r}
+qplot(depth, data=diamonds, geom="histogram")
+qplot(depth, data=diamonds, geom="histogram", xlim=c(55, 70), binwidth=0.1)
+```
+
+If you want to compare the distribution between groups, you have a few options:
+
+* create small multiples of the histogram, `facets = . ~ var`;  
+* use a frequency polygon, geom = "freqpoly";  
+* create a conditional density plot, `position = "fill"`.  
+```{r}
+depth_dist <- ggplot(diamonds, aes(depth)) + xlim(58, 68)
+depth_dist + geom_histogram(aes(y = ..density..), binwidth = 0.1) +
+  facet_grid(cut ~ .)
+depth_dist + geom_histogram(aes(fill = cut), binwidth = 0.1,
+  position = "fill")
+depth_dist + geom_freqpoly(aes(y = ..density.., colour = cut),
+  binwidth = 0.1)
+```
+
+Both the histogram and frequency polygon geom use `stat_bin`. This statistic produces two output variables `count` and `density`. The count is the default as it is most interpretable. The `density` is basically the count divided by the total count, and is useful when you want to compare the shape of the distributions, not the overall size.
+
+Many of the distribution-related geoms come in geom/stat pairs. Most of
+these geoms are aliases: a basic geom is combined with a stat to produce the
+desired plot. The boxplot may appear to be an exception to this rule, but behind the scenes geom_boxplot uses a combination of the basic bars, lines and points.
+
+* `geom_boxplot = stat_boxplot + geom_boxplot`: box-and-whisker plot, for a continuous variable conditioned by a categorical variable.  
+
+> This is a useful display when the categorical variable has many distinct values. When there are few values, the techniques described above give a better view of the shape of the distribution. This technique can also be used for continuous variables, if they are first finely binned.
+
+* `geom_jitter = position_jitter + geom_point`: a crude way of looking at discrete distributions by adding random noise to the discrete values so that they don’t overplot.  
+
+* geom_density = stat_density + geom_area: a smoothed version of the frequency polygon based on kernel smoothers.
+
+> Use a density plot when you know that the underlying density is smooth, continuous and unbounded. You can use the adjust parameter to make the density more or less smooth.
+
+```{r}
+library(plyr)
+qplot(cut, depth, data=diamonds, geom="boxplot")
+qplot(carat, depth, data=diamonds, geom="boxplot",
+      group = round_any(carat, 0.1, floor), xlim = c(0, 3))
+qplot(class, cty, data=mpg, geom="jitter")
+qplot(class, drv, data=mpg, geom="jitter")
+qplot(depth, data=diamonds, geom="density", xlim = c(54, 70))
+qplot(depth, data=diamonds, geom="density", xlim = c(54, 70),
+      fill = cut, alpha = I(0.2))
+```
+
+## 5.5 Dealing with overplotting
+
+The scatterplot is a very important tool for assessing the relationship between
+two continuous variables. However, when the data is large, often points will be plotted on top of each other, obscuring the true relationship. In extreme cases, you will only be able to see the extent of the data, and any conclusions drawn from the graphic will be suspect. This problem is called overplotting.
+
+A number of ways to deal with it:  
+
+* Small amounts of overplotting can sometimes be alleviated by making the points smaller, or using hollow glyphs. The data is 2000 points sampled from two independent normal distributions, and the code to produce the graphic is shown below.
+```{r}
+df <- data.frame(x = rnorm(2000), y = rnorm(2000))
+norm <- ggplot(df, aes(x, y))
+norm + geom_point()
+norm + geom_point(shape = 1)
+norm + geom_point(shape = ".") # Pixel sized
+```
+
+* For larger datasets with more overplotting, you can use alpha blending (transparency) to make the points transparent. If you specify alpha as a ratio, the denominator gives the number of points that must be overplotted to give a solid colour. In R, the lowest amount of transparency you can use is 1/256, so it will not be effective for heavy overplotting.
+```{r}
+library(scales)
+norm + geom_point(colour = alpha("black", 1/3))
+norm + geom_point(colour = alpha("black", 1/5))
+norm + geom_point(colour = alpha("black", 1/10))
+```
+
+* If there is some discreteness in the data, you can randomly jitter the points to alleviate some overlaps. This is particularly useful in conjunction with transparency. By default, the amount of jitter added is 40% of the resolution of the data, which leaves a small gap between adjacent regions.
+```{r}
+td <- ggplot(diamonds, aes(table, depth)) + xlim(50, 70) + ylim(50, 70)
+td + geom_point()
+td + geom_jitter()
+jit <- position_jitter(width = 0.5)
+td + geom_jitter(position = jit)
+td + geom_jitter(position = jit, colour = alpha("black", 1/10))
+td + geom_jitter(position = jit, colour = alpha("black", 1/50))
+td + geom_jitter(position = jit, colour = alpha("black", 1/200))
+```
+
+Alternatively, we can think of overplotting as a 2d density estimation
+problem, which gives rise to two more approaches:  
+
+* Bin the points and count the number in each bin, then visualise that count in some way (the 2d generalisation of the histogram). Breaking the plot into many small squares can produce distracting visual artefacts. Carr et al. (1987) suggests using hexagons instead, and this is implemented with `geom_hexagon`, using the capabilities of the `hexbin` package.
+```{r}
+library(hexbin)
+d <- ggplot(diamonds, aes(carat, price)) + xlim(1,3)
+d + stat_bin2d()
+d + stat_bin2d(bins = 10)
+d + stat_bin2d(binwidth=c(0.02, 200))
+d + stat_binhex()
+d + stat_binhex(bins = 10)
+d + stat_binhex(binwidth=c(0.02, 200))
+```
+
+* Estimate the 2d density with stat_density2d, and overlay contours from this distribution on the scatterplot, or display the density by itself as coloured tiles, or points with size proportional to density.
+```{r}
+d <- ggplot(diamonds, aes(carat, price)) + xlim(1,3)
+d + geom_point() + geom_density2d()
+# d + stat_density2d(geom = "point", aes(size = ..density..), contour = F) +
+#   scale_size_area(to = c(0.2, 1.5))
+d + stat_density2d(geom = "tile", aes(fill = ..density..), contour = F)
+last_plot() + scale_fill_gradient(limits = c(1e-5,8e-4))
+```
+
+Another approach to dealing with overplotting is to add data summaries to help guide the eye to the true shape of the pattern within the data. For example, you could add a smooth line showing the centre of the data with `geom_smooth`.
+
+## 5.6 Surface plots
+
+`ggplot2` currently does not support true 3d surfaces. However, it does support the common tools for representing 3d surfaces in 2d: contours, coloured tiles and bubble plots.
+
+## 5.7 Drawing maps
+
+ggplot2 provides some tools to make it easy to combine maps from the `maps` package with other ggplot2 graphics.
+
+There are two basic reasons you might want to use map data:  
+
+* to add reference outlines to a plot of spatial data,  
+* to construct a choropleth map by filling regions with colour.  
+
+Adding map border is performed by the `borders()` function. The first two arguments select the map and region within the map to display. The remaining arguments control the appearance of the borders: their `colour` and `size`. If you’d prefer filled polygons instead of just borders, you can set the fill colour.
+```{r}
+library(maps)
+data(us.cities)
+big_cities <- subset(us.cities, pop > 500000)
+qplot(long, lat, data = big_cities) + borders("state", size = 0.5)
+tx_cities <- subset(us.cities, country.etc == "TX")
+ggplot(tx_cities, aes(long, lat)) +
+  borders("county", "texas", colour = "grey70") +
+  geom_point(colour = alpha("black", 0.5))
+```
+
+Choropleth maps are a little trickier and a lot less automated because it is
+challenging to match the identifiers in your data to the identifiers in the map
+data. The following example shows how to use `map_data()` to convert a map into a data frame, which can then be `merge()`d with your data to produce a choropleth map. 
+```{r}
+library(maps)
+states <- map_data("state")
+arrests <- USArrests
+names(arrests) <- tolower(names(arrests))
+arrests$region <- tolower(rownames(USArrests))
+choro <- merge(states, arrests, by = "region")
+# Reorder the rows because order matters when drawing polygons
+# and merge destroys the original ordering
+choro <- choro[order(choro$order), ]
+qplot(long, lat, data = choro, group = group,fill = assault, geom = "polygon")
+qplot(long, lat, data = choro, group = group,
+      fill = assault / murder, geom = "polygon")
+```
+
+## 5.8 Revealing uncertainty
+
+If you have information about the uncertainty present in your data, whether it
+be from a model or from distributional assumptions, it is often important to
+display it. There are four basic families of geoms that can be used for this job,
+depending on whether the x values are discrete or continuous, and whether or
+not you want to display the middle of the interval, or just the extent. 
+
+See Table 5.2.
+
+There are so many different ways to calculate standard errors. For very simple cases, ggplot2 provides some tools in the form of summary functions, otherwise you will have to do it yourself. The `effects` package is particularly useful for extracting these values from linear models. The following example fits a two- way model with interaction, and shows how to extract and visualise marginal and conditional effects.
+```{r}
+d <- subset(diamonds, carat < 2.5 & + rbinom(nrow(diamonds), 1, 0.2) == 1)
+d$lcarat <- log10(d$carat)
+d$lprice <- log10(d$price)
+# Remove overall linear trend
+detrend <- lm(lprice ~ lcarat, data = d)
+d$lprice2 <- resid(detrend)
+mod <- lm(lprice2 ~ lcarat * color, data = d)
+library(effects)
+effectdf <- function(...) {
+  suppressWarnings(as.data.frame(effect(...)))
+  }
+color <- effectdf("color", mod)
+both1 <- effectdf("lcarat:color", mod)
+carat <- effectdf("lcarat", mod, default.levels = 50)
+both2 <- effectdf("lcarat:color", mod, default.levels = 3)
+qplot(lcarat, lprice, data=d, colour = color)
+qplot(lcarat, lprice2, data=d, colour = color)
+```
+
+## 5.9 Statistical summaries
+
+
+It’s often useful to be able to summarise the y values for each unique x value.
+In ggplot2, this role is played by `stat_summary()`, which provides a flexible way of summarising the conditional distribution of y with the aesthetics `ymin`, `y` and `ymax`.
+```{r}
+m <- ggplot(movies, aes(year, rating))
+m + stat_summary(fun.y = "median", geom = "line")
+m + stat_summary(fun.data = "median_hilow", geom = "smooth")
+m + stat_summary(fun.y = "mean", geom = "line")
+m + stat_summary(fun.data = "mean_cl_boot", geom = "smooth")
+m2 <- ggplot(movies, aes(round(rating), log10(votes)))
+m2 + stat_summary(fun.y = "mean", geom = "point")
+m2 + stat_summary(fun.data = "mean_cl_normal", geom = "errorbar")
+m2 + stat_summary(fun.data = "median_hilow", geom = "pointrange")
+# m2 + stat_summary(fun.data = "median_hilow", geom = "crossbar")
+```
+
+### 5.9.1 Individual summary functions
+
+The arguments `fun.y`, `fun.ymin` and `fun.ymax` accept simple numeric summary functions. You can use any summary function that takes a vector of numbers and returns a single numeric value: mean(), median(), min(), max().
+```{r}
+midm <- function(x) mean(x, trim = 0.5)
+m2 +
+  stat_summary(aes(colour = "trimmed"), fun.y = midm, geom = "point") +
+  stat_summary(aes(colour = "raw"), fun.y = mean, geom = "point") +
+  scale_colour_hue("Mean")
+```
+
+### 5.9.2 Single summary function
+
+`fun.data` can be used with more complex summary functions such as one of the summary functions from the `Hmisc` package. You can also write your own summary function. This summary function should return a named vector as output.
+```{r}
+iqr <- function(x, ...) {
+  qs <- quantile(as.numeric(x), c(0.25, 0.75), na.rm = T)
+  names(qs) <- c("ymin", "ymax")
+  qs
+}
+m + stat_summary(fun.data = "iqr", geom="ribbon")
+```
+
+## 5.10 Annotating a plot
+
+
+
+
+
+
+
+
+

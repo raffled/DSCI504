@@ -1,0 +1,203 @@
+---
+title: "Shiny Lesson 5"
+author: "jharner"
+date: "April 8, 2015"
+output: html_document
+---
+
+## Use R scripts and data
+
+This lesson will show you how to load data, R Scripts, and packages to use in your Shiny apps. Along the way, you will build a sophisticated app that visualizes US Census data.
+
+### counties.rds
+
+`counties.rds` is a dataset of demographic data for each county in the United States, collected with the UScensus2010 R package.
+
+Once you have the file,  
+
+* Create a new folder named data in your census-app directory.  
+* Move counties.rds into the data folder.  
+
+When you’re done, your `census-app` folder should look like this.
+
+The dataset in `counties.rds` contains  
+
+* the name of each county in the United States
+* the total population of the county
+* the percent of residents in the county who are white, black, hispanic, or asian
+
+```{r}
+counties <- readRDS("census-app/data/counties.rds")
+head(counties)
+```
+
+#### helpers.R
+
+`helpers.R` is an R script that can help you make *choropleth maps*. A choropleth map is a map that uses color to display the regional variation of a variable. In our case, `helpers.R` will create `percent_map`, a function designed to map the data in `counties.rds`.
+
+`helpers.R` uses the `maps` and `mapproj` packages in R. If you’ve never installed these packages before, you’ll need to do so before you make this app. Run
+```
+install.packages(c("maps", "mapproj"))
+```
+
+The percent_map function in helpers.R takes five arguments:  
+
+Argument	| Input
+----------|------
+var	      | a column vector from the counties.rds dataset
+color	    | any character string you see in the output of `colors()`
+legend.title	| A character string to use as the title of the plot’s legend
+max	      | A parameter for controlling shade range (defaults to 100)
+min	      | A parameter for controlling shade range (defaults to 0)
+
+You can use `percent_map` at the command line to plot the counties data as a choropleth map, like this.
+```{r}
+library(maps)
+library(mapproj)
+source("census-app/helpers.R")
+counties <- readRDS("census-app/data/counties.rds")
+percent_map(counties$white, "darkgreen", "% white")
+```
+
+### Loading files and file paths
+
+Take a look at the above code. To use `percent_map`, we first ran `helpers.R` with the `source` function, and then loaded `counties.rds` with the `readRDS` function. We also ran `library(maps)` and `library(mapproj)`.
+
+You will need to ask Shiny to call the same functions before it uses `percent_map` in your app, but how you write these functions will change. Both `source` and `readRDS` require a file path, and file paths do not behave the same way in a Shiny app as they do at the command line.
+
+When Shiny runs the commands in `server.R`, it will treat all file paths as if they begin in the same directory as `server.R`. In other words, the directory that you save `server.R` in will become the `working` directory of your Shiny app.
+
+Since you saved helpers.R in the same directory as server.R, you can ask Shiny to load it with
+```
+source("helpers.R")
+```
+
+Since you saved `counties.rds` in a sub-directory (named `data`) of the directory that `server.R` is in, you can load it with.
+```
+counties <- readRDS("data/counties.rds")
+```
+
+You can load the `maps` and `mapproj` packages in the normal way with
+```
+library(maps)
+library(mapproj)
+```
+which does not require a file path.
+
+Here’s what we’ve learned so far:
+
+* The `server.R` script is run once, when you launch your app  
+* The `unnamed` function inside shinyServer is run once each time a user visits your app
+* The R expressions inside `render*` functions are run many times. Shiny runs them once each time a user changes a widget.
+
+How can you use this information?
+
+Source scripts, load libraries, and read data sets at the beginning of `server.R` outside of the shinyServer function. Shiny will only run this code once, which is all you need to set your server up to run the R expressions contained in shinyServer.
+
+Define user specific objects inside shinyServer’s `unnamed` function, but outside of any `render*` calls. These would be objects that you think each user will need their own personal copy of. For example, an object that records the user’s session information. This code will be run once per user.
+
+Only place code that Shiny must rerun to build an object inside of a `render*` function. Shiny will rerun all of the code in a `render*` chunk each time a user changes a widget mentioned in the chunk. This can be quite often.
+
+You should generally avoid placing code inside a render function that does not need to be there. The code will slow down the entire app.
+
+### Your Turn 1
+
+#### ui.R
+```
+# ui.R
+
+shinyUI(fluidPage(
+  titlePanel("censusVis"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      helpText("Create demographic maps with 
+        information from the 2010 US Census."),
+    
+      selectInput("var", 
+        label = "Choose a variable to display",
+        choices = c("Percent White", "Percent Black",
+          "Percent Hispanic", "Percent Asian"),
+        selected = "Percent White"),
+    
+      sliderInput("range", 
+        label = "Range of interest:",
+        min = 0, max = 100, value = c(0, 100))
+    ),
+  
+    mainPanel(plotOutput("map"))
+  )
+))
+```
+
+#### server.R
+```
+# server.R
+library(maps)
+library(mapproj)
+source("helpers.R")
+counties <- readRDS("data/counties.rds")
+
+shinyServer(
+  function(input, output) {
+
+    output$map <- renderPlot({
+
+        percent_map( # some arguments )
+    })
+
+  }
+)
+```
+
+You may wonder, “Won’t each user need their own copy of counties and `percent_map`?” (which would imply that the code should go inside of shinyServer’s `unnamed` function). No, each user will not.
+
+Keep in mind that your user’s computer won’t run any of the R code in your Shiny app. In fact, their computer won’t even see the R code. The computer that you use as a server will run all of the R code necessary for all of your users. It will send the results over to your users as HTML elements.
+
+Your server can rely on a single global copy of `counties.rds` and `percent_map` to do all of the R execution necessary for all of the users. You only need to build a separate object for each user if the objects will have different values for each of your users.
+
+### Finishing the app
+
+The `censusVis` app has one reactive object, a plot named “map”. The plot is built with the `percent_map` function, which takes five arguments.
+
+* The first three arguments, var, color, and legend.title, depend on the value of the select box widget.  
+* The last two arguments, max and min, should be the max and min values of the slider bar widget.  
+
+The `server.R` script below shows one way to craft reactive arguments for `percent_map`. R’s switch function can transform the output of a select box widget to whatever you like. However, the script is incomplete. It does not provide values for `color`, `legend.title`, `max`, or `min`. Note: the script will not run as is.
+```
+# server.R
+
+library(maps)
+library(mapproj)
+counties <- readRDS("data/counties.rds")
+source("helpers.R")
+
+shinyServer(
+  function(input, output) {
+    output$map <- renderPlot({
+      data <- switch(input$var, 
+        "Percent White" = counties$white,
+        "Percent Black" = counties$black,
+        "Percent Hispanic" = counties$hispanic,
+        "Percent Asian" = counties$asian)
+  
+      percent_map(var = data, color = ?, legend.title = ?, max = ?, min = ?)
+    })
+  }
+)
+```
+
+### Recap
+
+You can create more complicated Shiny apps by loading R Scripts, packages, and data sets.
+
+Keep in mind:
+
+* The directory that `server.R` appears in will become the working directory of the Shiny app.   
+* Shiny will run code placed at the start of server.R, before shinyServer, only once during the life of the app.  
+* Shiny will run code placed inside shinyServer multiple times, which can slow the app down.  
+
+You also learned that switch is a useful companion to multiple choice Shiny widgets. Use switch to change the values of a widget into R expressions.
+
+
+

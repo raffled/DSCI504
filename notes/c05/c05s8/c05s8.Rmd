@@ -1,0 +1,147 @@
+---
+title: 'Chap 5: The Grammar of Graphics: The ggplot2 Package'
+author: "jharner"
+date: "February 15, 2015"
+output: html_document
+---
+
+## 5.8 Position adjustments
+
+`ggplot2` often automatically handles the problem of how to arrange geoms that overlap with each other. For example, the following code produces a bar plot of the number of cars with different transmissions, but also with the number of cylinders, `cyl`, mapped to the fill color for the bars. The `color` aesthetic for the bars is set to `black` to provide borders for the bars and the fill color scale is explicitly set to three shades of gray.
+```{r}
+library(ggplot2)
+mtcars2 <- mtcars
+mtcars2$trans <- factor(mtcars$am,
+                        levels=0:1, 
+                        labels=c("automatic", "manual"))
+mtcars2$gear <- as.factor(mtcars$gear)
+p <- ggplot(mtcars2)
+p + geom_bar(aes(x=trans, fill=factor(cyl)), color="black") +
+  scale_fill_manual(values=gray(1:3/3))
+```
+
+There are three bars in this plot for automatic transmission cars (i.e., three bars share the same x-location). Rather than draw these bars over the top of each other, `ggplot2` has automatically stacked them. This is an example of *position adjustment*.
+
+An alternative is to use a *dodge* position adjustment, which places the bars side=by-side.
+```{r}
+p + geom_bar(aes(x=trans, fill=factor(cyl)), color="black", position="dodge") +
+  scale_fill_manual(values=gray(1:3/3))
+```
+
+The *fill* position adjustment can expands the bars to fill the available space to produce a spine plot.
+```{r}
+p + geom_bar(aes(x=trans, fill=factor(cyl)), color="black", position="fill") +
+  scale_fill_manual(values=gray(1:3/3))
+```
+
+## 5.9 Coordinate transformations
+
+Section 5.5 described how scale components can be used to control the mapping between data values and the values of an aesthetic.
+
+Another way to view this feature is as a transformation of the data values into the aesthetic domain. An example of a transformation of data values is to use log axes on a plot. The following code does this for the plot of engine displacement versus miles per gallon via the `trans` argument of the `scale_x_continuous()` function.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) +
+  scale_x_continuous(trans="log") +
+  scale_y_continuous(trans="log") +
+  geom_line(aes(x=disp, y=mpg), stat="smooth", method="lm")
+```
+
+The data are transformed by the `scale` before any `stat` components are applied, so the line is fitted to the log transformed data.
+
+Another typr of transformation is a coordinate system component, or `coord`, which by default is simple linear cartesian coordinates, but this can be explicitly set to something else.
+
+The following code adds a coordinate system component to the previous plot, using the `coord_trans()` function. This transformation says both dimensions should be exponential.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) +
+  scale_x_continuous(trans="log") +
+  scale_y_continuous(trans="log") +
+  geom_line(aes(x=disp, y=mpg), stat="smooth", method="lm") +
+  coord_trans(x="exp", y="exp")
+```
+
+This transformation occurs after the plot geoms have been created and controls how the graphical shapes are drawn on the page or screen. The effect is to reverse the transformation of the data, so that the data points are back in their familiar arrangement and the line of best fit, which was fitted to the logged data, has become a curve.
+
+The following code creates a normal, cartesian coordinate system, stacked barplot showing the number of cars with automatic versus manual transmissions.
+```{r}
+p + geom_bar(aes(x="", fill=trans)) + scale_fill_manual(values=gray(1:2/3))
+```
+
+This next code sets the coordinate system to be polar, so that the y-values (the heights of the bars) are treated as angles and x-values (the width of the bar) is a (constant) radius. The result is a pie chart.
+```{r}
+p + geom_bar(aes(x="", fill=trans)) +
+  scale_fill_manual(values=gray(1:2/3)) +
+  coord_polar(theta="y")
+```
+
+## 5.10 Facets
+
+Facetting means breaking the data into several subsets and producing a separate plot for each subset on a single page. The `facet_wrap()` function can be used to add facetting to a plot. The main argument to this function is a formula that describes the variable to use for subsetting the data. For example, in the following code a separate scatterplot is produced for each value of `gear`. The nrow argument is used here to ensure a single row of plots is produced.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) + facet_wrap(~ gear, nrow=1)
+```
+
+The `facet_grid()` function for producing plots arranged on a grid. The main difference is that the formula argument is of the form `y ~ x` and a separate row of plots is produced for each level of `y` and a separate column of plots is produced for each level of `x`.
+
+See Figure 5.12.
+
+## 5.11 Themes
+
+`ggplot2` package takes a different approach to controlling the appearance of graphical objects, by separating output into data and non-data elements.
+
+* Geoms represent the data-related elements of a plot, and
+* Aesthetics are used to control the appearance of a geom.
+
+The collection of graphical parameters that control non-data elements is called a theme in `ggplot2`. A theme can be added as another component to a plot in the now-familiar way. For example, the following code creates a basic scatterplot, but changes the basic color settings for the plot using the function `theme_bw()`. Instead of the standard gray background with white grid lines, this plot has a white background with gray gridlines.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) + theme_bw()
+```
+
+This example sets the text angle of rotation; it is also possible to set other parameters such as text font, color, and justification.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) + theme(axis.title.y=element_text(angle=0))
+```
+Note: Using `opts()` to set specific theme elements of the overall theme has been deprecated.
+
+Other functions for setting graphical parameters for lines, segments, and rectangles, plus a `element_blank()`, which removes the relevant plot element completely.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) + theme(axis.title.y=element_blank())
+```
+
+The following code specifies an overall title for a scatterplot.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) +
+  labs(title="Vehicle Fuel Efficiency")
+```
+
+## 5.12 Annotating
+
+To create custom annotations on a plot with `ggplot2` set aesthetics rather than mapping them. For example, the following code shows how to add a single horizontal line to a scatterplot by setting the `yintercept` aesthetic of an `hline` geom to a specific value.
+```{r}
+p + geom_point(aes(x=disp, y=mpg)) + geom_hline(yintercept=29)
+```
+
+The functions that create geoms are actually creating a complete layer, with many components of the layer either inheriting or automatically generating default values.
+
+A geom inherits its data source from the original "ggplot" object that forms the basis for the plot. However, it is possible to specify a new data source for a geom. The following code generates a data frame containing various fuel efficiency (lower) limits for different classes of vehicle. These come from Criterion 4 of the Green Communities Grant Program, which is run by the Massachusetts Department of Energy Resources.
+```{r}
+gcLimits <- data.frame(category=c("2WD car", "4WD car",
+                                  "2WD small pick-up truck",
+                                  "4WD small pick-up truck", "2WD std pick-up truck",
+                                  "4WD std pick-up truck"),
+                       limit=c(29, 24, 20, 18, 17, 16))
+p + geom_point(aes(x=disp, y=mpg)) +
+  geom_hline(data=gcLimits, aes(yintercept=limit), linetype="dotted") +
+  geom_text(data=gcLimits, aes(y=limit + .1, label=category),
+            x=70, hjust=0, vjust=0, size=3)
+```
+
+## 5.13 Extending ggplot2
+
+Since `ggplot2` is based on a set of plot components that are combined to form plots, developing a new type of plot is usually simply a matter of combining the existing components in a new way.
+
+
+
+
+
+
+

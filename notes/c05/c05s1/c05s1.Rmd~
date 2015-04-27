@@ -1,0 +1,174 @@
+---
+title: 'Chap 5: The Grammar of Graphics: The ggplot2 Package'
+author: "jharner"
+date: "February 4, 2015"
+output: html_document
+---
+
+The `ggplot2` package provides an interpretation and extension of the ideas in Leland Wilkinson’s book *The Grammar of Graphics*. The `ggplot2` package represents a complete and coherent graphics system, completely separate from both traditional and lattice graphics.
+
+The `ggplot2` package is built on `grid`, so it provides another way to generate complete plots within the grid world.
+
+## 5.1 Quick plots
+
+For very simple plots, the `qplot()` function in `ggplot2` serves a similar purpose to the `plot()` function in traditional graphics.
+```{r}
+library(ggplot2)
+qplot(temperature, pressure, data=pressure)
+```
+
+The main differences between this scatterplot and what is produced by the traditional plot() function are just the default settings.
+
+There are similarities in how the appearance of the plot can be modified.
+```{r}
+qplot(temperature, pressure, data=pressure, main="Vapor Pressure of Mercury")
+```
+
+`ggplot2` diverges quite rapidly from the other graphics systems if further customizations are desired.
+```{r}
+qplot(temperature, pressure, data=pressure,
+      main="Vapor Pressure of Mercury",
+      geom=c("point", "line"), lty=I("dashed"))
+```
+
+The `lty` argument in this code is familiar, but the value "dashed" is wrapped
+inside a call to the `I()` function. The `geom` argument is also unique to `ggplot2`.
+
+The `diamonds` dataset consists of prices and quality information about 54,000 diamonds, and is included in the `ggplot2` package. The data contains the four C’s of diamond quality (`carat`, `cut`, `colour` and `clarity`) and five physical measurements (`depth`, `table`, `x`, `y` and `z`).
+```{r}
+library(ggplot2)
+data(diamonds)
+head(diamonds)
+qplot(carat, price, data = diamonds) 
+qplot(log(carat), log(price), data = diamonds)
+qplot(carat, x * y * z, data = diamonds)
+```
+
+#### Plots of carat and price with information about diamond colour and cut.
+
+```{r}
+set.seed(1410)
+dsmall <- diamonds[sample(nrow(diamonds), 100), ]
+head(dsmall)
+qplot(carat, price, data = dsmall, colour = color)
+qplot(carat, price, data = dsmall, shape = cut)
+```
+
+Colour, size and shape are all examples of aesthetic attributes, visual
+properties that affect the way observations are displayed. For every aesthetic attribute, there is a function, called a `scale`, which maps data values to valid values for that aesthetic.
+
+You can also manually set the aesthetics using `I()`, e.g., `colour = I("red")`.
+
+To make a semi-transparent colour you can use the `alpha` aesthetic, which takes a value between 0 (completely transparent) and 1 (complete opaque).
+```{r}
+qplot(carat, price, data = diamonds)
+qplot(carat, price, data = diamonds, alpha = I(1/10))
+qplot(carat, price, data = diamonds, alpha = I(1/100))
+qplot(carat, price, data = diamonds, alpha = I(1/200))
+```
+
+#### Plot geoms
+
+`qplot` is not limited to scatterplots, but can produce almost any kind of plot by varying the `geom`. Geom (short for geometric object) describes the type of object that is used to display the data. Some geoms have an associated
+statistical transformation.
+
+The following geoms illustrate:  
+* `geom = "point"` draws points to produce a scatterplot. This is the default when you supply both `x` and `y` arguments to `qplot()`.  
+* geom = "smooth" fits a smoother to the data and displays the smooth and its standard error.  
+
+#### Adding a smoother to a plot
+
+If you have a scatterplot with many data points, it can be hard to see exactly
+what trend is shown by the data. In this case you may want to add a smoothed
+line to the plot. This is easily done using the smooth geom.
+```{r}
+qplot(carat, price, data = dsmall, geom = c("point", "smooth"))
+qplot(carat, price, data = diamonds, geom = c("point", "smooth"))
+```
+
+The default smoother uses `method = "loess"` for small n, a smooth local regression.
+
+The wiggliness of the line is controlled by the `span` parameter, which ranges from 0 (exceedingly wiggly) to 1 (not so wiggly).
+```{r}
+qplot(carat, price, data = dsmall, geom = c("point", "smooth"), span = 0.2)
+qplot(carat, price, data = dsmall, geom = c("point", "smooth"), span = 1)
+```
+
+Loess does not work well for large datasets (it’s $O(n^2)$ in memory), and so
+an alternative smoothing algorithm is used when $n$ is greater than 1,000.
+
+Use the `mgcv` library and use `method = "gam", formula = y ∼ s(x)` to fit a generalized additive model. This is similar to using a spline with `lm`, but the degree of smoothness is estimated from the data. For large data, use the formula `y ~ s(x, bs = "cs")`. This is used by default when there are more than 1,000 points.
+```{r}
+library(mgcv)
+qplot(carat, price, data = dsmall, geom = c("point", "smooth"),
+      method = "gam", formula = y ~ s(x))
+qplot(carat, price, data = dsmall, geom = c("point", "smooth"), 
+      method = "gam", formula = y ~ s(x, bs = "cs"))
+```
+
+`method = "lm"` fits a linear model. The default will fit a straight line to your data, or you can specify `formula = y ~ poly(x, 2)` to specify a degree 2 polynomial. Load the `splines` package and use a natural spline: `formula = y ~ ns(x, 2)`. The second parameter is the degrees of freedom: a higher number will create a wigglier curve. You are free to specify any formula involving `x` and `y`. 
+```{r}
+library(splines)
+qplot(carat, price, data = dsmall, geom = c("point", "smooth"), method = "lm")
+qplot(carat, price, data = dsmall, geom = c("point", "smooth"),
+      method = "lm", formula = y ~ ns(x,5))
+```
+
+## 5.2 The ggplot2 graphics model
+
+The `ggplot2` package implements the Grammar of Graphics paradigm. Rather than having lots of different functions, each of which produces a different sort of plot, there is a small set of functions, each of which produces a different sort of plot component, and those components can be combined in many different ways to produce a huge variety of plots.
+
+The steps in creating a plot with `ggplot2`:  
+* Define the data that you want to plot and create an empty plot object with `ggplot()`.  
+* Specify what graphics shapes, or *geoms*, that you are going to use to view the data (e.g., data symbols or lines) and add those to the plot with, for example, `geom_point()` or `geom_line()`.  
+* Specify which features, or *aesthetics*, of the shapes will be used to represent data values (e.g., the x- and y-locations of data symbols) with the `aes()` function.  
+
+The data set is the `pressure` data frame, and the variables `temperature` and `pressure` are used as the x and y locations of data symbols.
+```{r}
+ggplot(pressure) +
+  geom_point(aes(x=temperature, y=pressure))
+```
+
+A `ggplot2` plot is built up like this by creating plot components, or layers, and combining them using the `+` operator.
+
+See Figure 5.3.
+
+### 5.2.1 Why another graphics system
+
+Reasons for using `ggplot2` over lattice and traditional graphics:  
+* the default appearance of plots has been carefully chosen with visual perception in mind;  
+* the arrangement of plot components and the inclusion of legends is automated;  
+* the language  is powerful and concise for expressing a variety of plots;  
+* rendering is done with `grid`, providing flexibility for annotating, editing, and embedding `ggplot2` output.  
+
+### 5.2.2 An example data set
+
+The `mtcars2` data set is based on the `mtcars` data set from the `datasets` package and contains information on 32 different car models, including:  
+* the size of the car engine (`disp`)  
+* the fuel efficiency (`mpg`)  
+* type of transmission (`trans`)  
+* number of forward gears (`gear`)  
+* number of cylinders (cyl).  
+
+```{r}
+mtcars2 <- mtcars
+mtcars2$trans <- factor(mtcars$am,
+                        levels=0:1, 
+                        labels=c("automatic", "manual"))
+head(mtcars2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
