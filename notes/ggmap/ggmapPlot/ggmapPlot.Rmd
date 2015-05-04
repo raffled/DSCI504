@@ -26,7 +26,7 @@ Mapmaking in R has made progress, e.g., the excellent interactive GUI-driven `De
 ```{r}
 library(ggmap)
 murder <- subset(crime, offense == "murder")
-# qmplot(lon, lat, data = murder, colour = I('red'), size = I(3), darken = .3)
+qmplot(lon, lat, data = murder, colour = I('red'), size = I(3), darken = .3)
 ```
 
 ## The layered grammar of graphics
@@ -199,9 +199,9 @@ HoustonMap +
 
 What about violent crimes in general? If we neglect the type of offense, we can get a good idea of the spatial distribution of violent crimes by using a contour plot. Since the map image itself is based on ggplot2’s annotation_raster, which doesn’t have a fill aesthetic, we can access the fill aesthetic to make a filled contour plot.
 
-```
+```{r}
 houston <- get_map("houston", zoom = 14)
-HoustonMap <- ggmap("houston", extent = "device", legend = "topleft")
+HoustonMap <- ggmap(houston, extent = "device", legend = "topleft")
 HoustonMap +
   stat_density2d(
     aes(x = lon, y = lat, fill = ..level..,  alpha = ..level..),
@@ -231,7 +231,7 @@ In addition to single plots, the base_layer argument to `ggmap` or `qmap` allows
 
 This last plot displays one of the known issues with contour plots in `ggplot2`—a “clipping” or “tearing” of the contours. Aside from that fact (which will likely be fixed in subsequent ggplot2 versions), we can see that in fact most violent crimes happen on Monday, with a distant second being Friday. Friday’s pattern is easily recognizable—a small elevated dot in the downtown bar district and
 an expanded region to the southwest in the district known as midtown, which has an active nightlife. Monday’s pattern is not as easily explainable.
-```
+```{r}
 houston <- get_map(location = "houston", zoom = 14, color = "bw",
                    source = "osm")
 HoustonMap <- ggmap(houston, base_layer = ggplot(aes(x = lon, y = lat),

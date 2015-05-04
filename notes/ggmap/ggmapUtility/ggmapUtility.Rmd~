@@ -1,0 +1,129 @@
+---
+title: "ggmap: utility"
+author: "jharner"
+date: "April 19, 2015"
+output: html_document
+---
+
+### `ggmap`’s utility functions
+
+`ggmap` has several utility functions which aid in spatial exploratory data analysis.
+
+#### The `geocode` function
+
+The ability to move from an address to a longitude/latitude coordinate is virtually a must for visualizing spatial data. Unfortunately however, the process is almost always done outside R by using a proper geographic information system (GIS), saving the results, and importing them into R. The `geocode` function simplifies this process to a single line in R.
+
+`geocode` is a vectorized function which accepts character strings and returns a data frame of geographic information. In the default case of `output = "simple"`, only longitudes and latitudes are returned. These are actually Mercator projections of the ubiquitous unprojected 1984 world geodetic system (WGS84), a spheroidal earth model used by Google Maps. When output is set to `"more"`, a larger data frame is returned which provides much more Google Geocoding information on the query:
+```{r}
+library(ggmap)
+geocode("baylor university", output = "more")
+```
+
+In particular, administrative bodies at various levels are reported. Going further, setting `output = "all"` returns the entire JavaScript Object Notation (JSON) object given by the Google Geocoding API parsed by `rjson`.
+
+The Geocoding API has a number of request limitations in place to prevent abuse. An unspecified short-term rate limit is in place (see mapdist below) as well as a 24-hour limit of 2,500 requests. These are monitored to some extent by the hidden global variable `.GoogleGeocodeQueryCount` and exported function `geocodeQueryCheck`. `geocode` uses these to monitor its own progress and will either (1) slow its rate depending on usage or (2) throw an error if the query limit is exceeded. Note that `revgeocode` shares the same request pool and is monitored by the same variable and function. To learn more about the Google Geocoding, Distance Matrix, and Directions API usage regulations, see the websites listed in the bibliography.
+
+#### The `revgeocode` function
+
+In some instances it is useful to convert longitude/latitude coordinates into a physical address. This is made possible (to the extent to which it is possible) with the revgeocode function which also relies on the Google Geocoding API.
+```{r}
+gc <- geocode("baylor university")
+(gc <- as.numeric(gc))
+revgeocode(gc)
+```
+
+Like geocode, more output can be provided as well:
+```{r}
+revgeocode(gc, output = "more")
+```
+
+Thus, in addition to the physical where of a reverse geocode (i.e., the address), `revgeocode` can report the what at various levels of granularity. Finally, an `output = "all"` option is available which returns the entire JSON object reported by Google.
+
+#### The `mapdist` function
+
+The ability to compute colloquial distances in a spatial setting is another invaluable commodity which typically sends analysts to a GIS. Using the Google Distance Matrix API, `ggmap` is able to provide distances for Google-determined routes for driving, bicycling, or walking. In addition to the distances, Google reports estimated travel durations as well. The full output is placed in an easy-to-use data frame. For example,
+```{r}
+from <- c("houston", "houston", "dallas")
+to <- c("waco, texas", "san antonio", "houston")
+mapdist(from, to)
+```
+
+The default mode of transportation is driving; however, the other modes are also available. The input forms of from and to can be either physical addresses (ideal), lazy("the white house"), orgeographic coordinates (which are reverse geocoded). While the output defaults to the data frame format seen above, setting `output = "all"` provides the full JSON object from Google.
+
+The Distance Matrix API limits users to 100 requests per query, 100 requests per 10 seconds, and 2500 requests per 24 hours. To the extent to which these can be easily monitored, the exported function distQueryCheck helps the user keep track of their remaining balance of queries. It relies on the hidden global variable `.GoogleDistQueryCount`
+```{r}
+distQueryCheck()
+.GoogleDistQueryCount
+```
+
+If the user exceeds the limitations, `mapdist` either (1) pauses until the short-term request limit has lapsed or (2) errors if no queries are remaining. Thus, it is almost identical to the mechanism in place for geocoding. If the user believes this to be incorrect, an override is available with the mapdist specification `override_limit = TRUE`.
+
+The data frame output of `mapdis`t is very convenient for use with `ggplot2`. An example is provided by Figure 11, where travel times from one location ("My Office") to several nearby locations are (1) determined using `mapdist`, (2) binned into categories using `cut`, and then (3) plotted using a combination of `qmap`, `geom_text`, and `geom_rect` with the `fill` aesthetic set to the category of travel time. The full code is in the examples section of the documentation of `ggmap`.
+
+#### The `route` function
+
+The route function provides the map distances for the sequence of “legs” which constitute a route between two locations. Each leg has a beginning and ending longitude/latitude coordinate along with a distance and duration in the same units as reported by mapdist. The collection of legs in sequence constitutes a single route (path) most easily plotted with `geom_leg`, a new exported `ggplot2` geom which is simply `geom_segment` with rounded ends.
+
+A nice illustration of plotting routes with `geom_leg` can be seen in Figure 12 where three routes are plotted between the same two locations. These can be obtained using the `alternatives = TRUE` specification in route. alternatives requests more than one route from the origin to the destination; the returned value is again a data frame with an additional variable which serves as a route identifier (A, B, C, etc.).
+
+```
+legs_df <- route(
+  'marrs mclean science, baylor university',
+  '220 south 3rd street, waco, tx 76701',
+  alternatives = TRUE
+)
+qmap('424 clay avenue, waco, tx', zoom = 15, maptype = 'hybrid',
+     base_layer = ggplot(aes(x = startLon, y = startLat), data = legs_df)) geom_leg(
+    aes(x = startLon, y = startLat, xend = endLon, yend = endLat, 
+        colour = route),
+    alpha = 3/4, size = 2, data = legs_df
+) +
+labs(x = 'Longitude', y = 'Latitude', colour = 'Route') + facet_wrap(~route, ncol = 3) + theme(legend.position = 'top')
+```
+
+Like map distances, there are restrictions on the limit of routes which can be requested in a given period of time as well. The number of queries left is monitored by the .GoogleRouteQueryCount variable with the routeQueryCheck function.
+
+## Plotting shape files
+
+As a final example which is perhaps too common to ignore, plotting shape files with ggmap is a breeze and can be done in several ways. The easiest way is to convert the shape file to a data frame with fortify (`ggplot2`) and then add a point/path/polygon layer to the map, depending on what the contents of the shape file are (note that fortify does not yet have methods for all shape files). Additional layers can be added by simply layering on more geom layers. Figure 13 shows a basic example of plotting the U.S. Census 2000 census tracts along with complete code.
+```
+# get an example shape file
+download.file('http://www.census.gov/geo/cob/bdy/tr/tr00shp/tr48_d00_shp.zip',
+              destfile = 'census.zip')
+
+# unzip, and load tools
+unzip('census.zip')
+library(maptools)
+library(gpclib)
+library(sp)
+
+gpclibPermit()
+
+# read data into R
+shapefile <- readShapeSpatial('tr48_d00.shp',
+                              proj4string = CRS("+proj=longlat +datum=WGS84"))
+
+# convert to a data.frame for use with ggplot2/ggmap and plot
+data <- fortify(shapefile)
+
+qmap('texas', zoom = 6, maptype = 'satellite') +
+  geom_polygon(aes(x = long, y = lat, group = group), data = data,
+    colour = 'white', fill = 'black', alpha = .4, size = .3)
+```
+
+## Conclusion and future directions
+
+Building on top of `ggplot2`, `ggmap` provides several new useful tools for visualizing spatial data. Theoretically speaking, the layered grammar of graphics attempts to enforce plotting consistency and therefore good plotting practice. Practically speaking, building `ggmap` on `ggplot2` makes the result even better as the full range of `ggplot2` capabilities can be brought to bear.
+
+There are a number of future directions in store for ggmap. The new osmar package integrates R and the OpenStreetMap data structures with which OpenStreetMap maps, Stamen Maps, and CloudMade Maps are rendered, thereby opening a floodgate of possibilities for plotting geographic objects on top of maps or satellite imagery all within R using ggmap (Eugster and Schlesinger, 2013). Alternatively, integration with other spatial packages in R could provide several incredibly useful practical tools for spatial data analysis. Finally, the Google Elevation API and Places API provide additional interesting frontiers which can be incorporated into the ggmap framework just like the other Google APIs to give users additional capabilities though freely available geographical data.
+
+
+
+
+
+
+
+
+
+
+
